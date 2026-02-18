@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+<title>PMO AI Copilot</title>
+
+<link rel="stylesheet" href="/style.css">
+
+<!-- ICONS -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+
+<div class="app">
+
+<!-- ================= SIDEBAR ================= -->
+
+<aside id="sidebar" class="sidebar collapsed">
+
+<div class="sidebar-header">
+
+    <img src="assets/uib1.jpg" alt="Logo PMO" class="sidebar-logo">
+
+    <button class="toggle-btn" onclick="toggleSidebar()">
+        <i class="fa-solid fa-bars"></i>
+    </button>
+
+</div>
+
+<button class="sidebar-btn primary" onclick="newChat()">
+<i class="fa-regular fa-pen-to-square"></i>
+<span>Nouveau chat</span>
+</button>
+
+<div class="menu">
+
+<button class="sidebar-btn" onclick="showChat()">
+<i class="fa-regular fa-comment"></i>
+<span>Assistant</span>
+</button>
+
+<button class="sidebar-btn" onclick="showDashboard()">
+<i class="fa-solid fa-chart-column"></i>
+<span>Dashboard</span>
+</button>
+
+<button class="sidebar-btn" onclick="openUploadModal()">
+<i class="fa-solid fa-upload"></i>
+<span>Upload projet</span>
+</button>
+
+</div>
+
+</aside>
+
+<!-- ================= MAIN ================= -->
+
+<main class="main">
+
+<section id="chatSection" class="view active">
+
+    <div id="chat" class="chat"></div>
+
+    <div class="input-zone">
+
+  <div class="input-wrapper">
+
+      <textarea id="question"
+        placeholder="Message PMO AI..."
+        rows="1"></textarea>
+
+      <button id="sendBtn" onclick="sendMessage()">
+          <i class="fa-solid fa-paper-plane"></i>
+      </button>
+
+  </div>
+
+</div>
+
+</section>
+
+<section id="dashboardSection" class="view">
+
+<div class="dashboard-header">
+<h3>Dashboard Global</h3>
+</div>
+
+<iframe
+src="https://app.powerbi.com/reportEmbed?reportId=4e48d14b-d7bd-44d4-95f8-b50ee1275c84&autoAuth=true">
+</iframe>
+
+</section>
+
+</main>
+</div>
+
+<!-- ================= MODAL ================= -->
+
+<div id="uploadModal" class="modal">
+<div class="modal-box">
+<h3>Uploader un projet</h3>
+<input type="file" id="projectFile">
+<button onclick="uploadProject()">Uploader</button>
+</div>
+</div>
+
+<script src="/script.js"></script>
+</body>
+</html>
