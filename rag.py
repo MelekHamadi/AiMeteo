@@ -935,3 +935,150 @@ def suggest_actions(project_name, week=None):
                 actions.append(f"KPI {kpi_name} : {action_llm}")
     
     return actions if actions else ["Aucune action spécifique recommandée pour ce projet/semaine."]
+
+
+    # ========== FONCTIONS POUR L'AXE 3 : ÉVALUATION DE LA SANTÉ ==========
+
+def get_latest_week(project_name):
+    """Retourne la semaine la plus récente pour un projet donné."""
+    weeks = set()
+    for doc in project_documents.get(project_name, []):
+        m = re.search(r'\[Semaine=(S\d{2}-\d{2})\]', doc)
+        if m:
+            weeks.add(m.group(1))
+    if not weeks:
+        return None
+    return sorted(weeks, key=lambda w: int(w[1:3]))[-1]
+
+def get_general_status(project_name, week=None):
+    """Récupère le statut général (statut générale) pour une semaine donnée."""
+    if week is None:
+        week = get_latest_week(project_name)
+    for doc in project_documents.get(project_name, []):
+        if f"[Semaine={week}]" in doc and "[FEUILLE=Météo]" in doc:
+            m = re.search(r'statut général (\w+)', doc)
+            if m:
+                return m.group(1)
+    return None
+
+def get_kpi_status(project_name, kpi_name, week=None):
+    """Récupère le statut d'un KPI spécifique pour une semaine donnée."""
+    if week is None:
+        week = get_latest_week(project_name)
+    for doc in project_documents.get(project_name, []):
+        if f"[Semaine={week}]" in doc and "[FEUILLE=KPI]" in doc and f"[KPI={kpi_name}]" in doc:
+            m = re.search(r'statut (\w+)', doc)
+            if m:
+                return m.group(1)
+    return None
+
+def get_budget_consumption(project_name, week=None):
+    """Récupère le budget consommé J/H pour une semaine donnée."""
+    if week is None:
+        week = get_latest_week(project_name)
+    for doc in project_documents.get(project_name, []):
+        if f"[Semaine={week}]" in doc and "[FEUILLE=Météo]" in doc:
+            m = re.search(r'budget consommé J/H (\d+)', doc)
+            if m:
+                return int(m.group(1))
+    return 0
+
+def compute_health_score(project_name, week=None):
+    """
+    Calcule un score de santé pour un projet à une semaine donnée (par défaut la plus récente).
+    Retourne un dictionnaire avec score (0-100), niveau, et les composantes individuelles.
+    """
+    if week is None:
+        week = get_latest_week(project_name)
+        if not week:
+            return {"score": 0, "level": "INCONNU", "components": {}}
+
+    # 1. Statut général (0-100)
+    statut_gen = get_general_status(project_name, week)
+    statut_score = {
+        "En contrôle": 100,
+        "À surveiller": 50,
+        "À redresser": 0,
+        None: 0
+    }.get(statut_gen, 0)
+
+    # 2. KPI principaux (moyenne des statuts)
+    kpi_list = ["Avancement", "Budget", "Risques", "Respect des delais", "Périmètre"]
+    kpi_scores = []
+    for kpi in kpi_list:
+        statut = get_kpi_status(project_name, kpi, week)
+        score = {
+            "En contrôle": 100,
+            "À surveiller": 50,
+            "À redresser": 0,
+            None: 0
+        }.get(statut, 0)
+        kpi_scores.append(score)
+    avg_kpi_score = sum(kpi_scores) / len(kpi_scores) if kpi_scores else 0
+
+    # 3. Santé budgétaire
+    total_budget = project_info.get(project_name, {}).get("budget_jh", 1)
+    consumed = get_budget_consumption(project_name, week)
+    budget_health = max(0, 100 - (consumed / total_budget * 100)) if total_budget else 0
+
+    # 4. Score de risque (basé sur le KPI Risques)
+    risk_statut = get_kpi_status(project_name, "Risques", week)
+    risk_score = {
+        "En contrôle": 100,
+        "À surveiller": 50,
+        "À redresser": 0,
+        None: 0
+    }.get(risk_statut, 0)
+
+    # Pondération
+    final_score = (
+        0.25 * statut_score +
+        0.40 * avg_kpi_score +
+        0.20 * budget_health +
+        0.15 * risk_score
+    )
+
+    # Détermination du niveau
+    if final_score >= 70:
+        level = "VERT (bonne santé)"
+    elif final_score >= 40:
+        level = "ORANGE (santé moyenne, vigilance requise)"
+    else:
+        level = "ROUGE (santé critique, actions urgentes)"
+
+    return {
+        "score": round(final_score, 1),
+        "level": level,
+        "week": week,
+        "components": {
+            "statut_general": statut_gen,
+            "statut_score": statut_score,
+            "kpi_scores": {kpi: s for kpi, s in zip(kpi_list, kpi_scores)},
+            "avg_kpi_score": avg_kpi_score,
+            "budget_health": budget_health,
+            "risk_score": risk_score
+        }
+    }
+
+def generate_health_explanation(project_name, health_data):
+    """
+    Utilise le LLM pour générer une explication textuelle du score de santé.
+    """
+    comp = health_data["components"]
+    prompt = f"""
+Tu es un analyste PMO. Explique le score de santé du projet {project_name} pour la semaine {health_data['week']}.
+
+Données :
+- Score global : {health_data['score']}/100 → niveau {health_data['level']}
+- Statut général : {comp['statut_general']} (score {comp['statut_score']})
+- Moyenne des KPI : {comp['avg_kpi_score']:.1f}/100
+- Santé budgétaire (consommation) : {comp['budget_health']:.1f}/100
+- Score des risques : {comp['risk_score']}/100
+
+Rédige une explication concise (3-4 phrases) mettant en évidence :
+- Les points forts du projet.
+- Les points faibles à surveiller.
+- Une recommandation générale.
+"""
+    from llm import ask_llm
+    return ask_llm(prompt)

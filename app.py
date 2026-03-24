@@ -4,7 +4,8 @@ from rag import (
     project_names, project_info, project_current_phase, project_chef, project_sponsor,
     project_documents, extract_risks_from_faits_marquants, summarize_risks, suggest_actions,
     produce_risk_report, aggregate_risks_all_projects, compare_projects, get_phase_transition,
-    get_project_with_most_critical_risks
+    get_project_with_most_critical_risks,
+    compute_health_score, generate_health_explanation   # <-- Nouveaux imports
 )
 from llm import ask_llm
 import os
@@ -282,12 +283,8 @@ def process_single_question(question, ui_project, context_project=None):
 
     # ========== 2. QUESTIONS SPÉCIFIQUES AVEC PROJET ==========
 
-    # 2.1 Budget J/H d'un projet (déjà traité via patterns, mais on garde les patterns plus bas)
-    # On va d'abord traiter les questions qui peuvent être résolues directement via les dictionnaires.
-
     # Chef de projet
     if "chef de projet" in q_lower:
-        # Chercher un projet mentionné ou utiliser le contexte
         proj = extract_project_from_question(question) or ui_project or context_project
         if proj:
             chef = project_chef.get(proj)
@@ -296,7 +293,6 @@ def process_single_question(question, ui_project, context_project=None):
             else:
                 return f"Information non disponible pour le chef de projet du projet {proj}."
         else:
-            # Si aucun projet, on peut lister tous les chefs
             if project_chef:
                 reponses = [f"{proj}: {chef}" for proj, chef in project_chef.items()]
                 return "Chefs de projet : " + ", ".join(reponses)
@@ -319,15 +315,7 @@ def process_single_question(question, ui_project, context_project=None):
             else:
                 return "Information non disponible."
 
-    # Code projet
-    if "code projet" in q_lower:
-        proj = extract_project_from_question(question) or ui_project or context_project
-        if proj:
-            # Chercher le code dans les documents ou dans une structure dédiée
-            # Pour simplifier, on utilise le fait que les documents Infos_projet contiennent le code
-            # On peut extraire via RAG, mais pour éviter les erreurs, on peut aussi avoir un dict.
-            # Pour l'instant, on laisse le RAG faire (mais il a déjà bien répondu).
-            pass  # On ne bloque pas, on laisse passer pour le RAG.
+    # Code projet (laissé au RAG)
 
     # 2.2 Budget J/H d'un projet (via patterns)
     patterns_jh = [
@@ -354,7 +342,6 @@ def process_single_question(question, ui_project, context_project=None):
             else:
                 return f"Projet '{projet_nom}' non trouvé."
         else:
-            # Si aucun projet nommé, utiliser le projet sélectionné ou le contexte
             proj = ui_project or context_project
             if proj:
                 budget = project_info.get(proj, {}).get("budget_jh")
@@ -373,7 +360,7 @@ def process_single_question(question, ui_project, context_project=None):
                 else:
                     return "Veuillez préciser le nom du projet ou sélectionner un projet dans la sidebar."
 
-    # 2.3 Budget KTND d'un projet (similaire)
+    # 2.3 Budget KTND d'un projet
     patterns_ktnd = [
         r"budget(?:\s+total)?\s+en\s+ktnd?\s+(?:du\s+projet\s+)?(.*)",
         r"budget\s+ktnd?\s+(?:du\s+projet\s+)?(.*)",
@@ -416,7 +403,7 @@ def process_single_question(question, ui_project, context_project=None):
                 else:
                     return "Veuillez préciser le nom du projet ou sélectionner un projet dans la sidebar."
 
-    # 2.4 Phase actuelle d'un projet spécifique
+    # Phase actuelle d'un projet spécifique
     match = re.search(r"phase actuelle(?:\s+du\s+projet)?\s+([^?]+)", q_lower)
     if match:
         projet_nom = clean_text(match.group(1))
@@ -431,7 +418,6 @@ def process_single_question(question, ui_project, context_project=None):
             else:
                 return f"Projet '{projet_nom}' non trouvé."
         else:
-            # Aucun projet spécifique, on utilise le contexte
             proj = ui_project or context_project
             if proj:
                 phase = project_current_phase.get(proj)
@@ -519,7 +505,19 @@ def process_single_question(question, ui_project, context_project=None):
         end_week = weeks[1] if len(weeks) > 1 else weeks[0] if weeks else None
         return get_project_with_most_critical_risks(start_week, end_week)
 
-    # ========== 10. RAG GÉNÉRAL ==========
+    # ========== 10. SANTÉ DU PROJET (AXE 3) ==========
+    if "santé" in q_lower or "health" in q_lower or "score de santé" in q_lower:
+        proj = extract_project_from_question(question) or ui_project or context_project
+        if not proj:
+            return "Veuillez préciser un projet pour évaluer sa santé."
+        week = extract_week(question)
+        health_data = compute_health_score(proj, week)
+        if not health_data["score"]:
+            return "Impossible de calculer le score de santé : données insuffisantes."
+        explanation = generate_health_explanation(proj, health_data)
+        return f"**Score de santé du projet {proj} : {health_data['score']}/100** – {health_data['level']}\n\n{explanation}"
+
+    # ========== 11. RAG GÉNÉRAL ==========
 
     # Ajuster les paramètres selon le type de question
     if is_kpi_question(question):
@@ -608,7 +606,6 @@ RÉPONSE :
     answer = remove_tags(answer).strip()
 
     # Post-traitement des dates
-    # Capturer les dates ISO et les transformer
     date_pattern = r'(\d{4})-(\d{2})-(\d{2})(?:\s+\d{2}:\d{2}:\d{2})?'
     matches = re.findall(date_pattern, answer)
     for annee, mois, jour in matches:
@@ -618,7 +615,6 @@ RÉPONSE :
             if candidate in answer:
                 new_date = format_date(candidate)
                 answer = answer.replace(candidate, new_date)
-    # Supprimer les heures des dates déjà formatées en français
     answer = re.sub(r'(\d{1,2}\s+\w+\s+\d{4})\s+\d{2}:\d{2}:\d{2}', r'\1', answer)
 
     if not answer or answer.lower() in ["je ne sais pas", "inconnu"]:
