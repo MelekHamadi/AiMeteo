@@ -497,7 +497,7 @@ Risques :
 {risks_text}
 """
     try:
-        response = ask_llm(prompt)
+        response = ask_llm(prompt, max_tokens=300)
         response = re.sub(r'```(?:json)?', '', response).strip().rstrip('`').strip()
         classifications = json.loads(response)
         if isinstance(classifications, list) and len(classifications) == len(risks):
@@ -542,7 +542,7 @@ Redige une analyse structuree comprenant :
 3. Une recommandation de vigilance
 
 Reponds en francais, de facon professionnelle et structuree, sans emojis.
-""")
+""", max_tokens=1500)
 
     classifications = batch_classify_risks(risks)
     enriched = [{**r, **c} for r, c in zip(risks, classifications)]
@@ -601,7 +601,7 @@ Redige une synthese professionnelle et structuree comprenant :
 4. RECOMMANDATIONS (3 recommandations concretes et actionnables)
 
 Reponds en francais, de facon professionnelle et detaillee, sans emojis.
-""")
+""", max_tokens=1500)
 
 def compute_weekly_risk_scores(project_name, signals):
     total_budget = max(project_info.get(project_name, {}).get("budget_jh", 1), 1)
@@ -701,7 +701,7 @@ Redige un rapport structure comprenant :
    - 2 recommandations concretes, actionnables et priorisees
 
 Reponds en francais, de facon professionnelle et detaillee, sans emojis.
-""")
+""", max_tokens=1500)
 
 def aggregate_risks_all_projects(start_week=None, end_week=None):
     projets_text = {}
@@ -756,7 +756,7 @@ Redige un bilan structure comprenant :
    - 3 recommandations prioritaires pour le portefeuille
 
 Reponds en francais, de facon professionnelle et structuree, sans emojis.
-""")
+""", max_tokens=1500)
 
 def compare_projects(proj1, proj2, start_week=None, end_week=None):
     from llm import ask_llm
@@ -779,7 +779,7 @@ Redige une comparaison structuree comprenant :
 5. Recommandations specifiques pour chaque projet
 
 Reponds en francais, de facon professionnelle, sans emojis.
-""")
+""", max_tokens=1500)
 
 def summarize_risks(risks_list):
     if not risks_list:
@@ -792,7 +792,7 @@ Risques identifies :
 
 Synthese concise (3-4 phrases) : risques recurrents, plus critiques, tendance generale, recommandation.
 Reponds en francais, sans emojis.
-""")
+""", max_tokens=800)
 
 # ==================== AXE 2 : ACTIONS ====================
 def suggest_actions(project_name, week=None):
@@ -861,7 +861,7 @@ Produis un plan d'action structure comprenant :
    - Le risque le plus critique a surveiller en priorite
 
 Reponds en francais, de facon professionnelle et detaillee, sans emojis.
-""")
+""", max_tokens=1200)
 
     # FIX PRIORITÉ 3 — parser proprement chaque ligne, supprimer les guillemets parasites
     lines = []
@@ -1022,7 +1022,7 @@ Redige une evaluation structuree comprenant :
    - 1 action prioritaire concrete pour ameliorer la sante du projet
 
 Reponds en francais, de facon professionnelle et structuree, sans emojis.
-""")
+""", max_tokens=1200)
 
 # ==================== AXE 4 : PRÉDICTION ====================
 def get_time_series(project_name, metrics, weeks_count=6):
@@ -1181,7 +1181,7 @@ Redige une analyse predictive structuree comprenant :
    - Le KPI ou risque le plus important a surveiller en priorite
 
 Reponds en francais, de facon professionnelle et structuree, sans emojis.
-""")
+""", max_tokens=1500)
 
 # ==================== COMPATIBILITÉ ====================
 def compute_health_score(project_name, week=None):
