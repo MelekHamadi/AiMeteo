@@ -21,7 +21,7 @@ def get_ollama_url():
     return "http://172.29.64.1:11434/api/generate"
 
 OLLAMA_URL = get_ollama_url()
-MODEL = "qwen2.5:7b-instruct-q4_K_M"
+MODEL = "qwen2.5:3b-instruct-q4_K_M"
 TIMEOUT = 300
 
 def ask_llm(prompt, max_tokens=1500):
