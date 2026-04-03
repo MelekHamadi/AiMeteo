@@ -7,7 +7,7 @@ def get_ollama_url():
     for url in [
         "http://localhost:11434",
         "http://127.0.0.1:11434",
-        "http://172.29.64.1:11434",
+        "http://172.30.128.1:11434",
         "http://host.docker.internal:11434",
     ]:
         try:
@@ -18,10 +18,10 @@ def get_ollama_url():
         except:
             continue
     print("❌ Ollama introuvable — utilisation URL par défaut")
-    return "http://172.29.64.1:11434/api/generate"
+    return "http://172.30.128.1:11434/api/generate"
 
 OLLAMA_URL = get_ollama_url()
-MODEL = "qwen2.5:3b-instruct-q4_K_M"
+MODEL = "qwen2.5:14b"
 TIMEOUT = 300
 
 def ask_llm(prompt, max_tokens=1500):

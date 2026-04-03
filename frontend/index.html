@@ -9,6 +9,28 @@
 </head>
 <body>
 
+<!-- History overlay -->
+<div id="historyOverlay" class="history-overlay"></div>
+
+<!-- History slide-in panel -->
+<div id="historyPanel" class="history-panel">
+    <div class="history-panel-header">
+        <span class="history-panel-title"><i class="fa-regular fa-clock"></i> Historique</span>
+        <button class="history-close-btn" onclick="showHistory(false)">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
+    <div class="history-panel-body" id="historyBody">
+        <div class="history-empty">
+            <i class="fa-regular fa-clock"></i>
+            <span>Aucun historique</span>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="pmo-toast"></div>
+
 <div class="app">
 
 <!-- ================= SIDEBAR ================= -->
@@ -25,21 +47,19 @@
         <span>Nouveau chat</span>
     </button>
 
-    <!-- ================= PROJECT SELECTOR ================= -->
+    <!-- PROJECT SELECTOR -->
     <div class="project-selector-container">
         <div class="project-selector-header" onclick="toggleProjectSelector()">
             <i class="fa-solid fa-folder-open"></i>
             <span id="selected-project-display">Tous les projets</span>
             <i class="fa-solid fa-chevron-down" id="selector-arrow"></i>
         </div>
-        
         <div class="project-selector-dropdown" id="projectDropdown">
             <div class="project-search">
                 <i class="fa-solid fa-search"></i>
                 <input type="text" id="projectSearch" placeholder="Rechercher un projet..." oninput="filterProjects()">
             </div>
             <div class="project-list" id="projectList">
-                <!-- Les projets seront chargés dynamiquement -->
                 <div class="project-item">
                     <i class="fa-solid fa-spinner fa-spin"></i>
                     <span>Chargement des projets...</span>
@@ -57,6 +77,11 @@
             <i class="fa-solid fa-chart-column"></i>
             <span>Dashboard</span>
         </button>
+        <!-- History button -->
+        <button class="sidebar-btn" onclick="toggleHistory()">
+            <i class="fa-regular fa-clock"></i>
+            <span>Historique</span>
+        </button>
         <button class="sidebar-btn" onclick="openUploadModal()">
             <i class="fa-solid fa-upload"></i>
             <span>Upload projet</span>
@@ -68,6 +93,12 @@
 <main class="main">
     <section id="chatSection" class="view active">
         <div id="chat" class="chat"></div>
+
+        <!-- Contextual chips zone -->
+        <div id="chipsZone" class="chips-zone">
+            <div id="chipsContainer" class="chips-container"></div>
+        </div>
+
         <div class="input-zone">
             <div class="input-wrapper">
                 <textarea id="question" placeholder="Message PMO AI..." rows="1"></textarea>
@@ -87,7 +118,7 @@
 </main>
 </div>
 
-<!-- ================= MODAL ================= -->
+<!-- MODAL -->
 <div id="uploadModal" class="modal">
     <div class="modal-box">
         <h3>Uploader un projet</h3>

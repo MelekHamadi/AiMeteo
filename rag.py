@@ -1173,7 +1173,7 @@ Redige une analyse predictive structuree comprenant :
    Identifier uniquement les VRAIS problemes (indicateurs < 60 ou en degradation)
    Pour chaque probleme :
    - Description precise et contextualisee
-   - Probabilite : haute / moyenne / faible (avec justification)
+   - Probabilite : haute / moyenne / faible (avec justification) 
    - Impact potentiel sur le projet
    - Mesure preventive concrete
 
