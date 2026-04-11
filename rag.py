@@ -497,7 +497,7 @@ Risques :
 {risks_text}
 """
     try:
-        response = ask_llm(prompt, max_tokens=300)
+        response = ask_llm(prompt)
         response = re.sub(r'```(?:json)?', '', response).strip().rstrip('`').strip()
         classifications = json.loads(response)
         if isinstance(classifications, list) and len(classifications) == len(risks):
@@ -542,7 +542,7 @@ Redige une analyse structuree comprenant :
 3. Une recommandation de vigilance
 
 Reponds en francais, de facon professionnelle et structuree, sans emojis.
-""", max_tokens=1500)
+""")
 
     classifications = batch_classify_risks(risks)
     enriched = [{**r, **c} for r, c in zip(risks, classifications)]
@@ -601,7 +601,7 @@ Redige une synthese professionnelle et structuree comprenant :
 4. RECOMMANDATIONS (3 recommandations concretes et actionnables)
 
 Reponds en francais, de facon professionnelle et detaillee, sans emojis.
-""", max_tokens=1500)
+""")
 
 def compute_weekly_risk_scores(project_name, signals):
     total_budget = max(project_info.get(project_name, {}).get("budget_jh", 1), 1)
@@ -701,7 +701,7 @@ Redige un rapport structure comprenant :
    - 2 recommandations concretes, actionnables et priorisees
 
 Reponds en francais, de facon professionnelle et detaillee, sans emojis.
-""", max_tokens=1500)
+""")
 
 def aggregate_risks_all_projects(start_week=None, end_week=None):
     projets_text = {}
@@ -756,7 +756,7 @@ Redige un bilan structure comprenant :
    - 3 recommandations prioritaires pour le portefeuille
 
 Reponds en francais, de facon professionnelle et structuree, sans emojis.
-""", max_tokens=1500)
+""")
 
 def compare_projects(proj1, proj2, start_week=None, end_week=None):
     from llm import ask_llm
@@ -779,7 +779,7 @@ Redige une comparaison structuree comprenant :
 5. Recommandations specifiques pour chaque projet
 
 Reponds en francais, de facon professionnelle, sans emojis.
-""", max_tokens=1500)
+""")
 
 def summarize_risks(risks_list):
     if not risks_list:
@@ -792,14 +792,13 @@ Risques identifies :
 
 Synthese concise (3-4 phrases) : risques recurrents, plus critiques, tendance generale, recommandation.
 Reponds en francais, sans emojis.
-""", max_tokens=800)
+""")
 
 # ==================== AXE 2 : ACTIONS ====================
-def suggest_actions(project_name, week=None):
+def suggest_actions(project_name, week=None, user_question=""):
     """
     AXE 2 — Plan d'action structuré.
-    FIX PRIORITÉ 3 : le parsing utilise regex pour extraire proprement Action/Impact/Effort.
-    Le routage (word-boundary) est géré dans app.py.
+    user_question : question originale pour contextualiser les actions.
     """
     if week is None:
         week = get_latest_week(project_name)
@@ -811,8 +810,10 @@ def suggest_actions(project_name, week=None):
     phase = project_current_phase.get(project_name, "inconnue")
     statut_gen = get_general_status(project_name, week)
 
+    # Contexte élargi si la question concerne un sujet spécifique
+    context_query = user_question if user_question else f"risques livrables chantiers semaine {week} {project_name}"
     context = retrieve_filtered_context(
-        f"risques livrables chantiers semaine {week} {project_name}",
+        context_query,
         k_final=10, feuille="Faits marquants", force_project=project_name
     )
 
@@ -843,15 +844,20 @@ KPI EN CONTROLE :
 CONTEXTE ADDITIONNEL (faits marquants) :
 {context}
 
+QUESTION SPECIFIQUE DE L'UTILISATEUR : {user_question if user_question else 'Plan d action general'}
+IMPORTANT : Si la question porte sur un sujet precis (qualite des donnees, delais, regles metier, budget...),
+adapte le DIAGNOSTIC et les ACTIONS PRIORITAIRES specifiquement a ce sujet.
+Ne pas repondre generiquement si la question est specifique.
+
 Produis un plan d'action structure comprenant :
 
 1. DIAGNOSTIC RAPIDE
-   - Resume de la situation actuelle en 2-3 phrases
+   - Resume de la situation actuelle en 2-3 phrases, en lien avec la question posee
    - Niveau d'urgence : critique / eleve / modere / faible
 
 2. ACTIONS PRIORITAIRES (3 actions)
    Pour chaque action :
-   - Description concrete et actionnable (pas generique)
+   - Description concrete et actionnable (adaptee a la question specifique)
    - KPI ou risque cible
    - Impact attendu : fort / moyen / faible
    - Effort requis : fort / moyen / faible
@@ -861,7 +867,7 @@ Produis un plan d'action structure comprenant :
    - Le risque le plus critique a surveiller en priorite
 
 Reponds en francais, de facon professionnelle et detaillee, sans emojis.
-""", max_tokens=1200)
+""")
 
     # FIX PRIORITÉ 3 — parser proprement chaque ligne, supprimer les guillemets parasites
     lines = []
@@ -1022,7 +1028,7 @@ Redige une evaluation structuree comprenant :
    - 1 action prioritaire concrete pour ameliorer la sante du projet
 
 Reponds en francais, de facon professionnelle et structuree, sans emojis.
-""", max_tokens=1200)
+""")
 
 # ==================== AXE 4 : PRÉDICTION ====================
 def get_time_series(project_name, metrics, weeks_count=6):
@@ -1173,7 +1179,7 @@ Redige une analyse predictive structuree comprenant :
    Identifier uniquement les VRAIS problemes (indicateurs < 60 ou en degradation)
    Pour chaque probleme :
    - Description precise et contextualisee
-   - Probabilite : haute / moyenne / faible (avec justification) 
+   - Probabilite : haute / moyenne / faible (avec justification)
    - Impact potentiel sur le projet
    - Mesure preventive concrete
 
@@ -1181,7 +1187,7 @@ Redige une analyse predictive structuree comprenant :
    - Le KPI ou risque le plus important a surveiller en priorite
 
 Reponds en francais, de facon professionnelle et structuree, sans emojis.
-""", max_tokens=1500)
+""")
 
 # ==================== COMPATIBILITÉ ====================
 def compute_health_score(project_name, week=None):

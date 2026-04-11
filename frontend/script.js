@@ -1,6 +1,8 @@
 const chat = document.getElementById("chat");
 let selectedProject = null;
 let projectsList = [];
+// Contexte conversationnel — mémorise le dernier projet mentionné pour résoudre les pronoms
+let conversationContext = { lastProject: null };
 
 /* ================= HISTORY MANAGEMENT ================= */
 const HISTORY_KEY = "pmo_chat_history";
@@ -20,7 +22,6 @@ function saveMessage(projectKey, role, content) {
         timestamp: new Date().toISOString(),
         id: Date.now() + Math.random()
     });
-    // Keep max 50 messages per project
     if (history[key].length > 50) history[key] = history[key].slice(-50);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
     renderHistoryPanel();
@@ -45,13 +46,13 @@ function formatTimestamp(iso) {
 }
 
 function renderHistoryPanel() {
-    const panel = document.getElementById("historyPanel");
-    if (!panel) return;
+    const body = document.getElementById("historyBody");
+    if (!body) return;
     const history = getHistory();
     const keys = Object.keys(history);
 
     if (keys.length === 0) {
-        panel.innerHTML = `<div class="history-empty"><i class="fa-regular fa-clock"></i><span>Aucun historique</span></div>`;
+        body.innerHTML = `<div class="history-empty"><i class="fa-regular fa-clock"></i><span>Aucun historique</span></div>`;
         return;
     }
 
@@ -59,8 +60,6 @@ function renderHistoryPanel() {
     keys.reverse().forEach(key => {
         const msgs = history[key];
         const displayName = key === "__global__" ? "Tous les projets" : key;
-        const lastMsg = msgs[msgs.length - 1];
-        const preview = lastMsg.content.replace(/<[^>]+>/g, "").substring(0, 60) + "…";
         const userMsgs = msgs.filter(m => m.role === "user");
         const count = userMsgs.length;
 
@@ -93,7 +92,7 @@ function renderHistoryPanel() {
         html += `</div></div>`;
     });
 
-    panel.innerHTML = html;
+    body.innerHTML = html;
 }
 
 function replayMessage(content) {
@@ -127,11 +126,9 @@ const CHIP_SUGGESTIONS = {
 function renderChips() {
     const container = document.getElementById("chipsContainer");
     if (!container) return;
-
     const chips = selectedProject
         ? CHIP_SUGGESTIONS.project(selectedProject)
         : CHIP_SUGGESTIONS.default;
-
     container.innerHTML = chips.map(chip => `
         <button class="chip-btn" onclick="useChip('${escapeAttr(chip.query)}')">
             ${escapeHtml(chip.label)}
@@ -143,7 +140,6 @@ function useChip(query) {
     const input = document.getElementById("question");
     input.value = query;
     input.focus();
-    // Auto-send after small delay
     setTimeout(() => sendMessage(), 100);
 }
 
@@ -328,7 +324,7 @@ function escapeHtml(text) {
 
 /* ================= MESSAGE UI ================= */
 let lastUserMessage = "";
-let feedbackState = {}; // msgId -> "up" | "down" | null
+let feedbackState = {};
 
 function createMessage(text, type, msgId) {
     const row = document.createElement("div");
@@ -353,7 +349,6 @@ function createMessage(text, type, msgId) {
 
     wrapper.appendChild(bubble);
 
-    // Add action bar for bot messages
     if (type === "bot" && msgId) {
         const actionBar = createActionBar(msgId, text, bubble);
         wrapper.appendChild(actionBar);
@@ -370,7 +365,6 @@ function createActionBar(msgId, rawText, bubble) {
     const bar = document.createElement("div");
     bar.className = "msg-action-bar";
 
-    // Copy button
     const copyBtn = document.createElement("button");
     copyBtn.className = "msg-action-btn";
     copyBtn.title = "Copier la réponse";
@@ -387,7 +381,6 @@ function createActionBar(msgId, rawText, bubble) {
         });
     };
 
-    // Thumbs up
     const thumbUpBtn = document.createElement("button");
     thumbUpBtn.className = "msg-action-btn";
     thumbUpBtn.title = "Bonne réponse";
@@ -407,7 +400,6 @@ function createActionBar(msgId, rawText, bubble) {
         }
     };
 
-    // Thumbs down
     const thumbDownBtn = document.createElement("button");
     thumbDownBtn.className = "msg-action-btn";
     thumbDownBtn.title = "Réponse incorrecte";
@@ -427,14 +419,12 @@ function createActionBar(msgId, rawText, bubble) {
         }
     };
 
-    // Retry button
     const retryBtn = document.createElement("button");
     retryBtn.className = "msg-action-btn";
     retryBtn.title = "Réessayer";
     retryBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
     retryBtn.onclick = () => {
         if (lastUserMessage) {
-            // Remove current bot row and re-ask
             const row = bar.closest(".msg-row");
             if (row) row.remove();
             askQuestion(lastUserMessage);
@@ -497,13 +487,9 @@ async function sendMessage() {
 
 async function askQuestion(message) {
     lastUserMessage = message;
-
-    // Save user message
     saveMessage(selectedProject, "user", message);
-
     createMessage(message, "user", null);
 
-    // Loading indicator
     const loadingRow = document.createElement("div");
     loadingRow.className = "msg-row bot";
     const loadingAvatar = document.createElement("div");
@@ -520,6 +506,8 @@ async function askQuestion(message) {
     try {
         const payload = { message };
         if (selectedProject) payload.project = selectedProject;
+        // Envoyer le dernier projet mentionné pour résoudre les pronoms ("Et sa santé ?")
+        if (conversationContext.lastProject) payload.context_project = conversationContext.lastProject;
 
         const res = await fetch("/chat", {
             method: "POST",
@@ -531,15 +519,16 @@ async function askQuestion(message) {
         chat.removeChild(loadingRow);
 
         const answer = data.answer || "Information non disponible.";
+        // Mémoriser le projet détecté pour le prochain message
+        if (data.detected_project) {
+            conversationContext.lastProject = data.detected_project;
+        }
         const msgId = Date.now();
         const renderedHtml = renderMarkdown(answer);
         const botBubble = createMessage("", "bot", msgId);
         await streamRender(botBubble, renderedHtml);
 
-        // Save bot response
         saveMessage(selectedProject, "bot", answer);
-
-        // Show chips again after response
         showChips();
 
     } catch (e) {
@@ -549,7 +538,7 @@ async function askQuestion(message) {
     }
 }
 
-/* ================= CHIPS SHOW/HIDE ================= */
+/* ================= CHIPS ================= */
 function showChips() {
     const zone = document.getElementById("chipsZone");
     if (zone) zone.style.display = "flex";
@@ -577,7 +566,6 @@ document.addEventListener("click", function(event) {
         dropdown.classList.remove("show");
         if (arrow) arrow.style.transform = "rotate(0deg)";
     }
-    // Close history panel on overlay click
     const overlay = document.getElementById("historyOverlay");
     if (overlay && event.target === overlay) showHistory(false);
 });
@@ -591,6 +579,10 @@ async function loadProjects() {
         const statusResponse = await fetch("/project_status");
         const statusData = await statusResponse.json();
         displayProjects(projectsList, statusData);
+
+        // ===== BADGE ALERTE SIDEBAR =====
+        updateSidebarAlertBadge(statusData);
+
     } catch (error) {
         console.error("Erreur chargement projets:", error);
         const listDiv = document.getElementById("projectList");
@@ -598,10 +590,81 @@ async function loadProjects() {
     }
 }
 
+/**
+ * BADGE ALERTE SIDEBAR
+ * Compte les projets critiques et affiche un badge rouge sur le sélecteur de projet.
+ * Aussi affiche un point d'alerte pulsant sur chaque projet critique dans la liste.
+ */
+function updateSidebarAlertBadge(statusData) {
+    if (!statusData) return;
+
+    const criticalProjects = Object.entries(statusData)
+        .filter(([, v]) => v.risk === "critique")
+        .map(([name]) => name);
+
+    const count = criticalProjects.length;
+
+    // Badge sur le header du sélecteur (nombre de projets critiques)
+    let badge = document.getElementById("sidebar-alert-badge");
+    if (!badge) {
+        badge = document.createElement("span");
+        badge.id = "sidebar-alert-badge";
+        badge.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            background: #A32D2D;
+            color: #fff;
+            border-radius: 99px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-left: auto;
+            flex-shrink: 0;
+            animation: pulse-badge 2s infinite;
+        `;
+        // Injecter le CSS de l'animation une seule fois
+        if (!document.getElementById("badge-anim-style")) {
+            const style = document.createElement("style");
+            style.id = "badge-anim-style";
+            style.textContent = `
+                @keyframes pulse-badge {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.75; transform: scale(1.15); }
+                }
+                .project-item .alert-dot {
+                    width: 7px;
+                    height: 7px;
+                    background: #A32D2D;
+                    border-radius: 50%;
+                    flex-shrink: 0;
+                    box-shadow: 0 0 5px #A32D2D88;
+                    animation: pulse-badge 2s infinite;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const header = document.querySelector(".project-selector-header");
+        if (header) header.appendChild(badge);
+    }
+
+    if (count > 0) {
+        badge.textContent = count;
+        badge.title = `${count} projet${count > 1 ? "s" : ""} critique${count > 1 ? "s" : ""} : ${criticalProjects.join(", ")}`;
+        badge.style.display = "inline-flex";
+    } else {
+        badge.style.display = "none";
+    }
+}
+
 function displayProjects(projects, statusData) {
     const listDiv = document.getElementById("projectList");
     if (!listDiv) return;
     const searchTerm = document.getElementById("projectSearch") ? document.getElementById("projectSearch").value.toLowerCase() : "";
+
     let html = `
         <div class="project-item all-projects ${!selectedProject ? "selected" : ""}"
              onclick="selectProject(null, 'Tous les projets', event)">
@@ -609,16 +672,26 @@ function displayProjects(projects, statusData) {
             <span class="project-name">Tous les projets</span>
             <span class="project-status unknown"></span>
         </div>`;
+
     if (projects && Array.isArray(projects) && projects.length > 0) {
         projects.filter(proj => proj && proj.toLowerCase().includes(searchTerm)).forEach(proj => {
             const status = statusData && statusData[proj] ? statusData[proj].risk : "inconnu";
             const statusClass = status === "faible" ? "healthy" : status === "critique" ? "critical" : "unknown";
             const selectedClass = (selectedProject === proj) ? "selected" : "";
+            const isCritical = status === "critique";
+
+            // Point rouge pulsant + tooltip pour les projets critiques
+            const alertDot = isCritical
+                ? `<span class="alert-dot" title="Projet critique — attention requise"></span>`
+                : "";
+
             html += `
                 <div class="project-item ${selectedClass}"
-                     onclick="selectProject('${proj.replace(/'/g, "\\'")}', '${proj.replace(/'/g, "\\'")}', event)">
-                    <i class="fa-solid fa-folder"></i>
-                    <span class="project-name">${proj}</span>
+                     onclick="selectProject('${proj.replace(/'/g, "\\'")}', '${proj.replace(/'/g, "\\'")}', event)"
+                     title="${isCritical ? '⚠ Projet critique' : proj}">
+                    <i class="fa-solid fa-folder${isCritical ? '-open' : ''}" style="${isCritical ? 'color:#A32D2D' : ''}"></i>
+                    <span class="project-name" style="${isCritical ? 'font-weight:600' : ''}">${proj}</span>
+                    ${alertDot}
                     <span class="project-status ${statusClass}"></span>
                 </div>`;
         });
@@ -656,6 +729,7 @@ function newChat() {
     const allProjectsItem = document.querySelector(".all-projects");
     if (allProjectsItem) allProjectsItem.classList.add("selected");
     chat.innerHTML = "";
+    conversationContext = { lastProject: null };  // Reset contexte conversationnel
     const textarea = document.getElementById("question");
     if (textarea) { textarea.style.height = "auto"; textarea.value = ""; }
     renderChips();
@@ -701,6 +775,7 @@ async function uploadProject() {
 
 function toggleTheme() {
     document.body.classList.toggle("dark");
+    localStorage.setItem("pmo_theme", document.body.classList.contains("dark") ? "dark" : "light");
     const btn = document.getElementById("themeBtn");
     if (btn) btn.innerHTML = document.body.classList.contains("dark")
         ? '<i class="fa-solid fa-sun"></i>'
@@ -724,10 +799,25 @@ if (textarea) {
 
 /* ================= INIT ================= */
 window.addEventListener("load", () => {
+    // Restaurer le thème
+    if (localStorage.getItem("pmo_theme") === "dark") {
+        document.body.classList.add("dark");
+    }
+
     loadProjects();
     renderChips();
     renderHistoryPanel();
     showChips();
+
+    // Polling toutes les 60s pour détecter les dégradations en temps réel
+    setInterval(async () => {
+        try {
+            const res = await fetch("/project_status");
+            const statusData = await res.json();
+            updateSidebarAlertBadge(statusData);
+        } catch (e) { /* silencieux */ }
+    }, 60000);
+
     setTimeout(() => {
         addSystemMessage("Bienvenue sur PMO AI Copilot");
         setTimeout(() => addSystemMessage("Sélectionnez un projet dans la sidebar ou posez une question globale"), 800);

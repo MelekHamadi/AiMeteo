@@ -1,0 +1,87 @@
+{
+  "project": "Scoring Crédit Retail",
+  "semaine": "S18-26",
+  "predictions": {
+    "budget": {
+      "probabilite": 0.0,
+      "niveau": "FAIBLE",
+      "label": "Risque de dépassement budgétaire"
+    },
+    "retard": {
+      "probabilite": 17.5,
+      "niveau": "FAIBLE",
+      "label": "Risque de retard de livraison"
+    },
+    "qualite": {
+      "probabilite": 0.0,
+      "niveau": "FAIBLE",
+      "label": "Risque de dégradation qualité"
+    },
+    "rh": {
+      "probabilite": 5.1,
+      "niveau": "FAIBLE",
+      "label": "Risque sur les ressources humaines"
+    },
+    "perimetre": {
+      "probabilite": 0.0,
+      "niveau": "FAIBLE",
+      "label": "Risque de dérive du périmètre"
+    },
+    "dependances": {
+      "probabilite": 11.1,
+      "niveau": "FAIBLE",
+      "label": "Risque sur les dépendances"
+    },
+    "satisfaction": {
+      "probabilite": 11.1,
+      "niveau": "FAIBLE",
+      "label": "Risque de baisse de satisfaction client"
+    }
+  },
+  "risque_composite": 6.4,
+  "niveau_global": "FAIBLE",
+  "features_used": {
+    "pct_semaine": 34.62,
+    "phase_score": 0.55,
+    "conso_jh": 480.0,
+    "pct_budget_consomme": 40.0,
+    "budget_burn_rate": 26.67,
+    "budget_reste_semaines": 27.0,
+    "gap_budget_temps": 5.38,
+    "budget_slope_3w": 65.0,
+    "statut_gen_score": 0.5,
+    "tend_gen_score": 0.0,
+    "kpi_avancement_statut": 1.0,
+    "kpi_avancement_tend": 1.0,
+    "kpi_budget_statut": 1.0,
+    "kpi_budget_tend": 0.5,
+    "kpi_risques_statut": 1.0,
+    "kpi_risques_tend": 1.0,
+    "kpi_qualite_statut": 1.0,
+    "kpi_qualite_tend": 1.0,
+    "kpi_satisfaction_statut": 1.0,
+    "kpi_delais_statut": 1.0,
+    "kpi_delais_tend": 1.0,
+    "kpi_rh_statut": 1.0,
+    "kpi_dep_statut": 1.0,
+    "kpi_perim_statut": 1.0,
+    "nb_kpi_degraded": 0.0,
+    "nb_kpi_critique": 0.0,
+    "nb_kpi_deterioration": 0.0,
+    "has_risk_text": 1.0,
+    "has_retard_keyword": 0.0,
+    "has_budget_keyword": 0.0,
+    "has_qualite_keyword": 0.0,
+    "budget_total_jh": 1200.0,
+    "project_duration_weeks": 52.0
+  },
+  "model_meta": {
+    "trained_at": "2026-04-11T17:35:06.057538",
+    "n_samples": 56,
+    "projects_trained_on": [
+      "Data Fraud Detection",
+      "Orion Data Platform",
+      "Scoring Crédit Retail"
+    ]
+  }
+}

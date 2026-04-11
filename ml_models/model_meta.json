@@ -1,0 +1,108 @@
+{
+  "model_budget": {
+    "roc_auc_cv_mean": 0.9977777777777778,
+    "roc_auc_cv_std": 0.004444444444444429,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "n_samples": 56,
+    "n_positive": 8
+  },
+  "model_retard": {
+    "roc_auc_cv_mean": 0.8920634920634921,
+    "roc_auc_cv_std": 0.07753444280520516,
+    "precision": 0.8571428571428571,
+    "recall": 0.72,
+    "f1": 0.782608695652174,
+    "n_samples": 56,
+    "n_positive": 25
+  },
+  "model_qualite": {
+    "roc_auc_cv_mean": 0.9625,
+    "roc_auc_cv_std": 0.04592793267718459,
+    "precision": 1.0,
+    "recall": 0.925,
+    "f1": 0.961038961038961,
+    "n_samples": 56,
+    "n_positive": 40
+  },
+  "model_rh": {
+    "roc_auc_cv_mean": 0.98125,
+    "roc_auc_cv_std": 0.024999999999999998,
+    "precision": 1.0,
+    "recall": 0.875,
+    "f1": 0.9333333333333333,
+    "n_samples": 56,
+    "n_positive": 16
+  },
+  "model_perimetre": {
+    "roc_auc_cv_mean": 0.9530612244897959,
+    "roc_auc_cv_std": 0.06078451130255426,
+    "precision": 1.0,
+    "recall": 0.9565217391304348,
+    "f1": 0.9777777777777777,
+    "n_samples": 56,
+    "n_positive": 23
+  },
+  "model_dependances": {
+    "roc_auc_cv_mean": 0.9285714285714286,
+    "roc_auc_cv_std": 0.05646924393157819,
+    "precision": 0.9473684210526315,
+    "recall": 1.0,
+    "f1": 0.972972972972973,
+    "n_samples": 56,
+    "n_positive": 18
+  },
+  "model_satisfaction": {
+    "roc_auc_cv_mean": 0.9454081632653063,
+    "roc_auc_cv_std": 0.055035863510864494,
+    "precision": 1.0,
+    "recall": 0.5789473684210527,
+    "f1": 0.7333333333333333,
+    "n_samples": 56,
+    "n_positive": 19
+  },
+  "trained_at": "2026-04-11T17:35:06.057538",
+  "n_projects": 3,
+  "n_samples": 56,
+  "projects": [
+    "Data Fraud Detection",
+    "Orion Data Platform",
+    "Scoring Crédit Retail"
+  ],
+  "feature_cols": [
+    "pct_semaine",
+    "phase_score",
+    "conso_jh",
+    "pct_budget_consomme",
+    "budget_burn_rate",
+    "budget_reste_semaines",
+    "gap_budget_temps",
+    "budget_slope_3w",
+    "statut_gen_score",
+    "tend_gen_score",
+    "kpi_avancement_statut",
+    "kpi_avancement_tend",
+    "kpi_budget_statut",
+    "kpi_budget_tend",
+    "kpi_risques_statut",
+    "kpi_risques_tend",
+    "kpi_qualite_statut",
+    "kpi_qualite_tend",
+    "kpi_satisfaction_statut",
+    "kpi_delais_statut",
+    "kpi_delais_tend",
+    "kpi_rh_statut",
+    "kpi_dep_statut",
+    "kpi_perim_statut",
+    "nb_kpi_degraded",
+    "nb_kpi_critique",
+    "nb_kpi_deterioration",
+    "has_risk_text",
+    "has_retard_keyword",
+    "has_budget_keyword",
+    "has_qualite_keyword",
+    "budget_total_jh",
+    "project_duration_weeks"
+  ]
+}
