@@ -1084,6 +1084,84 @@ def _interpret_kpi_score(score):
         return "dégradé (À surveiller)"
     return "critique (À redresser)"
 
+
+def format_ml_for_prompt_for_rag(ml_result):
+    """
+    Remplace format_ml_for_prompt() de pmo_predictor.py pour l'injection dans rag.py.
+ 
+    Objectif : transformer les données ML + SHAP en texte concret et lisible
+    directement utilisable par le LLM dans predict_problems().
+ 
+    Avant : "78.7% (ROC-AUC 0.87)"
+    Après : "78.7% — car : KPI Périmètre en statut À redresser (+18pt),
+             gap budget/temps = +22% (+14pt), 3 KPIs en détérioration (+11pt)"
+    """
+    if not ml_result:
+        return ""
+ 
+    conf      = ml_result.get("confidence", {})
+    preds     = ml_result.get("predictions", {})
+    shap_data = ml_result.get("shap", {})
+    is_conf   = conf.get("is_confident", True)
+    miss_ratio= conf.get("missing_ratio", 0)
+ 
+    lines = []
+    lines.append("=" * 60)
+    lines.append("PROBABILITÉS ML AVEC JUSTIFICATIONS CONCRÈTES")
+    n_samples = ml_result['model_meta'].get('n_train', '?')
+    lines.append(f"Modèle entraîné sur {n_samples} semaines de données réelles")
+    if not is_conf:
+        lines.append(f"⚠ Confiance réduite ({miss_ratio:.0%} données manquantes) — utiliser à titre indicatif")
+    lines.append("=" * 60)
+    lines.append("")
+ 
+    for name, pred in preds.items():
+        prob  = pred["probabilite"]
+        level = pred["niveau"]
+        label = pred["label"]
+        h     = pred.get("horizon", 4)
+ 
+        # Ligne principale : probabilité + niveau + horizon
+        lines.append(f"• {label}")
+        lines.append(f"  Probabilité : {prob}% ({level}) — horizon {h} semaines")
+ 
+        # Facteurs SHAP concrets
+        shap_info   = shap_data.get(name, {})
+        top_factors = shap_info.get("top_factors", [])
+ 
+        if top_factors and top_factors[0] != "Explication SHAP non disponible.":
+            lines.append("  Pourquoi cette probabilité :")
+            for factor_line in top_factors[:4]:
+                # factor_line ressemble à :
+                # "  • Écart budget vs avancement = +22.4% → ↑ AUGMENTE le risque de 18.3pt"
+                # On le reformate pour être encore plus lisible
+                clean = factor_line.strip().lstrip("•").strip()
+                lines.append(f"    → {clean}")
+        else:
+            # Fallback : pas de SHAP disponible, on donne quand même le contexte
+            lines.append("  Justification : basée sur les tendances KPI et l'historique budgétaire")
+ 
+        lines.append("")
+ 
+    # Risque composite
+    lines.append(f"► Risque composite global : {ml_result['risque_composite']}% ({ml_result['niveau_global']})")
+    lines.append("")
+    lines.append("CONSIGNES POUR LA RÉDACTION :")
+    lines.append("- Pour chaque problème identifié, cite la probabilité ML EXACTE (ex: '78.7%')")
+    lines.append("- Explique concrètement POURQUOI ce pourcentage (cite les facteurs SHAP)")
+    lines.append("- NE MENTIONNE PAS ROC-AUC, précision, recall ou tout terme technique ML")
+    lines.append("- NE DIS PAS 'selon le modèle ML' — intègre naturellement dans le texte")
+    lines.append("- Formulation attendue : 'Probabilité de 78.7%, principalement en raison de [facteurs]'")
+    lines.append("=" * 60)
+ 
+    return "\n".join(lines)
+
+
+
+
+
+
+
 def predict_problems(project_name, horizon_weeks=2):
     """
     AXE 4 — Prédiction structurée.
@@ -1145,6 +1223,22 @@ def predict_problems(project_name, horizon_weeks=2):
     etat_risques = f"{last['risques']}/100 — {_interpret_kpi_score(last['risques'])}" if last['risques'] is not None else "N/A"
     etat_qualite = f"{last['qualite']}/100 — {_interpret_kpi_score(last['qualite'])}" if last['qualite'] is not None else "N/A"
 
+    # ── Intégration ML optionnelle — silencieuse si pmo_predictor.py absent ──
+    ml_section = ""
+    try:
+        from pmo_predictor import get_ml_predictions
+        ml_result = get_ml_predictions(project_name)
+        if ml_result:
+            print(f"[ML] Probabilités pour {project_name} — {ml_result.get('semaine', '?')}")
+            for name, pred in ml_result["predictions"].items():
+                print(f"     {pred['label']:<35} : {pred['probabilite']:>5}%  ({pred['niveau']})")
+            print(f"     {'Risque composite':<35} : {ml_result['risque_composite']:>5}%  ({ml_result['niveau_global']})\n")
+            ml_section = "\n\n" + format_ml_for_prompt_for_rag(ml_result)  
+    except ImportError:
+        pass  # pmo_predictor.py absent — mode normal
+    except Exception as e:
+        print(f"[ML] Erreur ignorée : {e}")
+
     from llm import ask_llm
     return ask_llm(f"""
 Tu es un expert PMO senior. Analyse les tendances du projet {project_name}
@@ -1168,6 +1262,7 @@ RISQUES ET SIGNAUX RECENTS DOCUMENTES :
 {recent_risks_text}
 
 PROCHAINS LIVRABLES : {next_deliverables or 'Non specifies'}
+{ml_section}
 
 Redige une analyse predictive structuree comprenant :
 
@@ -1179,9 +1274,19 @@ Redige une analyse predictive structuree comprenant :
    Identifier uniquement les VRAIS problemes (indicateurs < 60 ou en degradation)
    Pour chaque probleme :
    - Description precise et contextualisee
-   - Probabilite : haute / moyenne / faible (avec justification)
-   - Impact potentiel sur le projet
-   - Mesure preventive concrete
+   - Probabilité : [CHIFFRE ML EXACT]% — car [EXPLIQUER CONCRÈTEMENT : citer les facteurs SHAP
+     reçus ci-dessus, ex: "le KPI Budget est en Détérioration depuis 3 semaines, l'écart
+     budget/temps atteint +18%, et 2 KPIs supplémentaires sont en statut À redresser"]
+   - Impact potentiel : [conséquence concrète sur le projet]
+   - Mesure préventive : [action concrète et spécifique]
+ 
+   RÈGLES ABSOLUES pour les probabilités :
+   ✓ CORRECT  : "Probabilité : 78.7% — car le gap budget/temps est de +22% et le KPI Délais
+                  est en Détérioration depuis 4 semaines"
+   ✗ INTERDIT : "78.7% selon le modèle ML, avec une précision élevée (ROC-AUC 0.87)"
+   ✗ INTERDIT : toute mention de ROC-AUC, recall, precision, F1, AUC
+   ✗ INTERDIT : "selon le modèle ML" — intègre naturellement dans le texte
+   ✗ INTERDIT : "avec une précision élevée" ou tout qualificatif du modèle
 
 3. RECOMMANDATION DE SURVEILLANCE
    - Le KPI ou risque le plus important a surveiller en priorite
