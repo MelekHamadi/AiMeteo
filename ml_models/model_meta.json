@@ -1,71 +1,25 @@
 {
-  "model_budget": {
-    "roc_auc_cv_mean": 0.9977777777777778,
-    "roc_auc_cv_std": 0.004444444444444429,
-    "precision": 1.0,
-    "recall": 1.0,
-    "f1": 1.0,
-    "n_samples": 56,
-    "n_positive": 8
-  },
-  "model_retard": {
-    "roc_auc_cv_mean": 0.8920634920634921,
-    "roc_auc_cv_std": 0.07753444280520516,
-    "precision": 0.8571428571428571,
-    "recall": 0.72,
-    "f1": 0.782608695652174,
-    "n_samples": 56,
-    "n_positive": 25
-  },
-  "model_qualite": {
-    "roc_auc_cv_mean": 0.9625,
-    "roc_auc_cv_std": 0.04592793267718459,
-    "precision": 1.0,
-    "recall": 0.925,
-    "f1": 0.961038961038961,
-    "n_samples": 56,
-    "n_positive": 40
-  },
-  "model_rh": {
-    "roc_auc_cv_mean": 0.98125,
-    "roc_auc_cv_std": 0.024999999999999998,
-    "precision": 1.0,
-    "recall": 0.875,
-    "f1": 0.9333333333333333,
-    "n_samples": 56,
-    "n_positive": 16
-  },
-  "model_perimetre": {
-    "roc_auc_cv_mean": 0.9530612244897959,
-    "roc_auc_cv_std": 0.06078451130255426,
-    "precision": 1.0,
-    "recall": 0.9565217391304348,
-    "f1": 0.9777777777777777,
-    "n_samples": 56,
-    "n_positive": 23
-  },
-  "model_dependances": {
-    "roc_auc_cv_mean": 0.9285714285714286,
-    "roc_auc_cv_std": 0.05646924393157819,
-    "precision": 0.9473684210526315,
-    "recall": 1.0,
-    "f1": 0.972972972972973,
-    "n_samples": 56,
-    "n_positive": 18
-  },
-  "model_satisfaction": {
-    "roc_auc_cv_mean": 0.9454081632653063,
-    "roc_auc_cv_std": 0.055035863510864494,
-    "precision": 1.0,
-    "recall": 0.5789473684210527,
-    "f1": 0.7333333333333333,
-    "n_samples": 56,
-    "n_positive": 19
-  },
-  "trained_at": "2026-04-11T17:35:06.057538",
-  "n_projects": 3,
-  "n_samples": 56,
+  "trained_at": "2026-04-12T11:39:44.711339",
+  "n_projects": 13,
+  "n_real_projects": 3,
+  "n_samples_train": 525,
+  "n_samples_test": 131,
   "projects": [
+    "ClientInsight 360",
+    "CyberShield Platform",
+    "Data Fraud Detection",
+    "DataLake Enterprise",
+    "ESGMetrics Platform",
+    "FinRisk Analytics",
+    "FraudNet Detection",
+    "KYC Automation Hub",
+    "LiquidityPilot Pro",
+    "Orion Data Platform",
+    "RegulatoryWatch AI",
+    "Scoring Crédit Retail",
+    "SmartCredit Engine"
+  ],
+  "real_projects": [
     "Data Fraud Detection",
     "Orion Data Platform",
     "Scoring Crédit Retail"
@@ -104,5 +58,164 @@
     "has_qualite_keyword",
     "budget_total_jh",
     "project_duration_weeks"
-  ]
+  ],
+  "split_method": "temporal_80_20_per_project",
+  "cv_method": "TimeSeriesSplit",
+  "leakage_protected": true,
+  "models": {
+    "budget": {
+      "cv_roc_auc_mean": 0.9540796295141258,
+      "cv_roc_auc_std": 0.010979529152946529,
+      "test_roc_auc": 0.9180581323438466,
+      "test_f1": 0.6885245901639344,
+      "test_precision": 0.75,
+      "test_recall": 0.6363636363636364,
+      "test_brier": 0.10211612478341955,
+      "n_train": 525,
+      "n_test": 131,
+      "n_positive_train": 198,
+      "n_positive_test": 33,
+      "real_projects_metrics": {
+        "roc_auc": 1.0,
+        "f1": 0.25,
+        "precision": 1.0,
+        "recall": 0.14285714285714285,
+        "brier": 0.4238871484595624,
+        "n_samples": 11,
+        "n_positive": 7
+      }
+    },
+    "retard": {
+      "cv_roc_auc_mean": 0.5841083226221098,
+      "cv_roc_auc_std": 0.19249474757559218,
+      "test_roc_auc": 0.7836567616737415,
+      "test_f1": 0.8436018957345972,
+      "test_precision": 0.7807017543859649,
+      "test_recall": 0.9175257731958762,
+      "test_brier": 0.16069662656074546,
+      "n_train": 525,
+      "n_test": 131,
+      "n_positive_train": 422,
+      "n_positive_test": 97,
+      "real_projects_metrics": {
+        "roc_auc": 1.0,
+        "f1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "brier": 0.10149153054455064,
+        "n_samples": 11,
+        "n_positive": 5
+      }
+    },
+    "qualite": {
+      "cv_roc_auc_mean": 0.5445115408078256,
+      "cv_roc_auc_std": 0.06927891635949665,
+      "test_roc_auc": 0.780764029749831,
+      "test_f1": 0.8532110091743119,
+      "test_precision": 0.8017241379310345,
+      "test_recall": 0.9117647058823529,
+      "test_brier": 0.1447946719229471,
+      "n_train": 525,
+      "n_test": 131,
+      "n_positive_train": 400,
+      "n_positive_test": 102,
+      "real_projects_metrics": {
+        "roc_auc": NaN,
+        "f1": 0.7058823529411765,
+        "precision": 1.0,
+        "recall": 0.5454545454545454,
+        "brier": 0.17885684301635274,
+        "n_samples": 11,
+        "n_positive": 11
+      }
+    },
+    "rh": {
+      "cv_roc_auc_mean": 0.6285468085369482,
+      "cv_roc_auc_std": 0.1553741975534418,
+      "test_roc_auc": 0.797545219638243,
+      "test_f1": 0.8,
+      "test_precision": 0.7155963302752294,
+      "test_recall": 0.9069767441860465,
+      "test_brier": 0.17743969428950218,
+      "n_train": 525,
+      "n_test": 131,
+      "n_positive_train": 377,
+      "n_positive_test": 86,
+      "real_projects_metrics": {
+        "roc_auc": 1.0,
+        "f1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "brier": 0.14237451210499733,
+        "n_samples": 11,
+        "n_positive": 5
+      }
+    },
+    "perimetre": {
+      "cv_roc_auc_mean": 0.5750654491546516,
+      "cv_roc_auc_std": 0.1258440253630198,
+      "test_roc_auc": 0.8501742160278746,
+      "test_f1": 0.81,
+      "test_precision": 0.6864406779661016,
+      "test_recall": 0.9878048780487805,
+      "test_brier": 0.20067138579178914,
+      "n_train": 525,
+      "n_test": 131,
+      "n_positive_train": 412,
+      "n_positive_test": 82,
+      "real_projects_metrics": {
+        "roc_auc": 0.8666666666666667,
+        "f1": 0.8333333333333334,
+        "precision": 0.7142857142857143,
+        "recall": 1.0,
+        "brier": 0.16100769000637097,
+        "n_samples": 11,
+        "n_positive": 5
+      }
+    },
+    "dependances": {
+      "cv_roc_auc_mean": 0.6087118125465297,
+      "cv_roc_auc_std": 0.11185204587103281,
+      "test_roc_auc": 0.7968465736810189,
+      "test_f1": 0.8598130841121495,
+      "test_precision": 0.7863247863247863,
+      "test_recall": 0.9484536082474226,
+      "test_brier": 0.15374991979292715,
+      "n_train": 525,
+      "n_test": 131,
+      "n_positive_train": 414,
+      "n_positive_test": 97,
+      "real_projects_metrics": {
+        "roc_auc": 1.0,
+        "f1": 0.8333333333333334,
+        "precision": 0.7142857142857143,
+        "recall": 1.0,
+        "brier": 0.14155154086725732,
+        "n_samples": 11,
+        "n_positive": 5
+      }
+    },
+    "satisfaction": {
+      "cv_roc_auc_mean": 0.5787022357391013,
+      "cv_roc_auc_std": 0.09476874996277695,
+      "test_roc_auc": 0.794814814814815,
+      "test_f1": 0.7777777777777778,
+      "test_precision": 0.6581196581196581,
+      "test_recall": 0.9506172839506173,
+      "test_brier": 0.19609087405117556,
+      "n_train": 525,
+      "n_test": 131,
+      "n_positive_train": 381,
+      "n_positive_test": 81,
+      "real_projects_metrics": {
+        "roc_auc": 0.9999999999999999,
+        "f1": 0.8333333333333334,
+        "precision": 0.7142857142857143,
+        "recall": 1.0,
+        "brier": 0.11641142700161895,
+        "n_samples": 11,
+        "n_positive": 5
+      }
+    }
+  }
 }

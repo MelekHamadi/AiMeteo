@@ -8,37 +8,37 @@
       "label": "Risque de dépassement budgétaire"
     },
     "retard": {
-      "probabilite": 17.5,
-      "niveau": "FAIBLE",
+      "probabilite": 49.4,
+      "niveau": "MODÉRÉ",
       "label": "Risque de retard de livraison"
     },
     "qualite": {
-      "probabilite": 0.0,
-      "niveau": "FAIBLE",
+      "probabilite": 63.5,
+      "niveau": "ÉLEVÉ",
       "label": "Risque de dégradation qualité"
     },
     "rh": {
-      "probabilite": 5.1,
+      "probabilite": 27.1,
       "niveau": "FAIBLE",
       "label": "Risque sur les ressources humaines"
     },
     "perimetre": {
-      "probabilite": 0.0,
-      "niveau": "FAIBLE",
+      "probabilite": 58.9,
+      "niveau": "ÉLEVÉ",
       "label": "Risque de dérive du périmètre"
     },
     "dependances": {
-      "probabilite": 11.1,
+      "probabilite": 22.2,
       "niveau": "FAIBLE",
       "label": "Risque sur les dépendances"
     },
     "satisfaction": {
-      "probabilite": 11.1,
+      "probabilite": 21.6,
       "niveau": "FAIBLE",
       "label": "Risque de baisse de satisfaction client"
     }
   },
-  "risque_composite": 6.4,
+  "risque_composite": 34.6,
   "niveau_global": "FAIBLE",
   "features_used": {
     "pct_semaine": 34.62,
@@ -76,12 +76,22 @@
     "project_duration_weeks": 52.0
   },
   "model_meta": {
-    "trained_at": "2026-04-11T17:35:06.057538",
-    "n_samples": 56,
+    "trained_at": "2026-04-12T11:11:49.726789",
+    "n_samples": 656,
     "projects_trained_on": [
+      "ClientInsight 360",
+      "CyberShield Platform",
       "Data Fraud Detection",
+      "DataLake Enterprise",
+      "ESGMetrics Platform",
+      "FinRisk Analytics",
+      "FraudNet Detection",
+      "KYC Automation Hub",
+      "LiquidityPilot Pro",
       "Orion Data Platform",
-      "Scoring Crédit Retail"
+      "RegulatoryWatch AI",
+      "Scoring Crédit Retail",
+      "SmartCredit Engine"
     ]
   }
 }
