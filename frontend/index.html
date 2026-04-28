@@ -9,25 +9,6 @@
 </head>
 <body>
 
-<!-- History overlay -->
-<div id="historyOverlay" class="history-overlay"></div>
-
-<!-- History slide-in panel -->
-<div id="historyPanel" class="history-panel">
-    <div class="history-panel-header">
-        <span class="history-panel-title"><i class="fa-regular fa-clock"></i> Historique</span>
-        <button class="history-close-btn" onclick="showHistory(false)">
-            <i class="fa-solid fa-xmark"></i>
-        </button>
-    </div>
-    <div class="history-panel-body" id="historyBody">
-        <div class="history-empty">
-            <i class="fa-regular fa-clock"></i>
-            <span>Aucun historique</span>
-        </div>
-    </div>
-</div>
-
 <!-- Toast -->
 <div id="pmo-toast"></div>
 
@@ -35,96 +16,179 @@
 
 <!-- ================= SIDEBAR ================= -->
 <aside id="sidebar" class="sidebar collapsed">
-    <div class="sidebar-header">
-        <img src="assets/uib1.jpg" alt="Logo PMO" class="sidebar-logo">
-        <button class="toggle-btn" onclick="toggleSidebar()">
-            <i class="fa-solid fa-bars"></i>
-        </button>
-    </div>
-
-    <button class="sidebar-btn primary" onclick="newChat()">
-        <i class="fa-regular fa-pen-to-square"></i>
-        <span>Nouveau chat</span>
+  <div class="sidebar-header">
+    <img src="assets/uib1.jpg" alt="Logo PMO" class="sidebar-logo">
+    <button class="toggle-btn" onclick="toggleSidebar()">
+      <i class="fa-solid fa-bars"></i>
     </button>
+  </div>
 
-    <!-- PROJECT SELECTOR -->
-    <div class="project-selector-container">
-        <div class="project-selector-header" onclick="toggleProjectSelector()">
-            <i class="fa-solid fa-folder-open"></i>
-            <span id="selected-project-display">Tous les projets</span>
-            <i class="fa-solid fa-chevron-down" id="selector-arrow"></i>
-        </div>
-        <div class="project-selector-dropdown" id="projectDropdown">
-            <div class="project-search">
-                <i class="fa-solid fa-search"></i>
-                <input type="text" id="projectSearch" placeholder="Rechercher un projet..." oninput="filterProjects()">
-            </div>
-            <div class="project-list" id="projectList">
-                <div class="project-item">
-                    <i class="fa-solid fa-spinner fa-spin"></i>
-                    <span>Chargement des projets...</span>
-                </div>
-            </div>
-        </div>
-    </div>
+  <button class="sidebar-btn primary" onclick="newChat()">
+    <i class="fa-regular fa-pen-to-square"></i>
+    <span>Nouveau chat</span>
+  </button>
 
-    <div class="menu">
-        <button class="sidebar-btn" onclick="showChat()">
-            <i class="fa-regular fa-comment"></i>
-            <span>Assistant</span>
-        </button>
-        <button class="sidebar-btn" onclick="showDashboard()">
-            <i class="fa-solid fa-chart-column"></i>
-            <span>Dashboard</span>
-        </button>
-        <!-- History button -->
-        <button class="sidebar-btn" onclick="toggleHistory()">
-            <i class="fa-regular fa-clock"></i>
-            <span>Historique</span>
-        </button>
-        <button class="sidebar-btn" onclick="openUploadModal()">
-            <i class="fa-solid fa-upload"></i>
-            <span>Upload projet</span>
-        </button>
+  <!-- PROJECT SELECTOR -->
+  <div class="project-selector-container">
+    <div class="project-selector-header" onclick="toggleProjectSelector()">
+      <i class="fa-solid fa-folder-open"></i>
+      <span id="selected-project-display">Tous les projets</span>
+      <i class="fa-solid fa-chevron-down" id="selector-arrow"></i>
     </div>
+    <div class="project-selector-dropdown" id="projectDropdown">
+      <div class="project-search">
+        <i class="fa-solid fa-search"></i>
+        <input type="text" id="projectSearch" placeholder="Rechercher un projet..." oninput="filterProjects()">
+      </div>
+      <div class="project-list" id="projectList">
+        <div class="project-item">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+          <span>Chargement des projets...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="menu">
+    <button class="sidebar-btn" onclick="showChat()">
+      <i class="fa-regular fa-comment"></i>
+      <span>Assistant</span>
+    </button>
+    <button class="sidebar-btn" onclick="showDashboard()">
+      <i class="fa-solid fa-chart-column"></i>
+      <span>Dashboard</span>
+    </button>
+    <button class="sidebar-btn" onclick="openUploadModal()">
+      <i class="fa-solid fa-upload"></i>
+      <span>Upload projet</span>
+    </button>
+  </div>
+
+  <!-- ================= RÉCENTS SECTION ================= -->
+  <div class="recents-section" id="recentsSection">
+    <div class="recents-header" onclick="toggleRecents()">
+      <span class="recents-title">
+        <i class="fa-regular fa-clock-rotate-left"></i>
+        <span>Récents</span>
+      </span>
+      <button class="recents-toggle-btn" id="recentsToggleBtn" title="Masquer les récents">
+        <i class="fa-solid fa-chevron-down" id="recentsChevron"></i>
+      </button>
+    </div>
+    <div class="recents-list" id="recentsList">
+      <!-- Populated by JS -->
+      <div class="recents-empty">
+        <i class="fa-regular fa-message"></i>
+        <span>Aucune conversation</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom spacer -->
+  <div style="flex:1"></div>
+
+  <!-- Theme toggle at bottom -->
+  <div style="padding: 0 10px 16px;">
+    <button class="sidebar-btn" id="themeBtn" onclick="toggleTheme()">
+      <i class="fa-solid fa-moon"></i>
+      <span>Thème</span>
+    </button>
+  </div>
 </aside>
 
 <!-- ================= MAIN ================= -->
 <main class="main">
-    <section id="chatSection" class="view active">
-        <div id="chat" class="chat"></div>
+  <section id="chatSection" class="view active">
 
-        <!-- Contextual chips zone -->
-        <div id="chipsZone" class="chips-zone">
-            <div id="chipsContainer" class="chips-container"></div>
+    <!-- ===== WELCOME STATE (centered, shown before first message) ===== -->
+    <div id="welcomeScreen" class="welcome-screen">
+      <div class="welcome-content">
+        <div class="welcome-logo">
+          <div class="welcome-icon">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <h1 class="welcome-title">PMO AI Copilot</h1>
+          <p class="welcome-sub">Votre assistant intelligent pour le pilotage de projets</p>
         </div>
 
-        <div class="input-zone">
-            <div class="input-wrapper">
-                <textarea id="question" placeholder="Message PMO AI..." rows="1"></textarea>
-                <button id="sendBtn" onclick="sendMessage()">
-                    <i class="fa-solid fa-paper-plane"></i>
-                </button>
-            </div>
-        </div>
-    </section>
+        <div class="welcome-input-wrap">
+          <div class="input-wrapper welcome-input-inner">
+            <textarea id="question" placeholder="Posez votre question sur un projet..." rows="1"></textarea>
+            <button id="sendBtn" onclick="sendMessage()">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+          </div>
 
-    <section id="dashboardSection" class="view">
-        <div class="dashboard-header">
-            <h3>Dashboard Global</h3>
+          <!-- Chips under input on welcome screen -->
+          <div id="chipsZoneWelcome" class="chips-zone-welcome">
+            <div id="chipsContainerWelcome" class="chips-container"></div>
+          </div>
         </div>
-        <iframe src="https://app.powerbi.com/reportEmbed?reportId=4e48d14b-d7bd-44d4-95f8-b50ee1275c84&autoAuth=true"></iframe>
-    </section>
+      </div>
+    </div>
+
+    <!-- ===== CHAT STATE (shown after first message) ===== -->
+    <div id="chatBody" class="chat-body" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+      <div id="chat" class="chat"></div>
+
+      <!-- Chips above input -->
+      <div id="chipsZone" class="chips-zone">
+        <div id="chipsContainer" class="chips-container"></div>
+      </div>
+
+      <div class="input-zone">
+        <div class="input-wrapper">
+          <textarea id="questionChat" placeholder="Message PMO AI..." rows="1"></textarea>
+          <button id="sendBtnChat" onclick="sendMessage()">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <section id="dashboardSection" class="view">
+    <div class="dashboard-header">
+      <h3>Dashboard Global</h3>
+    </div>
+    <iframe src="https://app.powerbi.com/reportEmbed?reportId=4e48d14b-d7bd-44d4-95f8-b50ee1275c84&autoAuth=true"></iframe>
+  </section>
 </main>
 </div>
 
 <!-- MODAL -->
 <div id="uploadModal" class="modal">
-    <div class="modal-box">
-        <h3>Uploader un projet</h3>
-        <input type="file" id="projectFile">
-        <button onclick="uploadProject()">Uploader</button>
+  <div class="modal-box">
+    <h3>Uploader un projet</h3>
+    <input type="file" id="projectFile">
+    <button onclick="uploadProject()">Uploader</button>
+  </div>
+</div>
+
+<!-- CHAT SESSION VIEWER OVERLAY -->
+<div id="sessionOverlay" class="session-overlay" onclick="closeSessionViewer()"></div>
+<div id="sessionViewer" class="session-viewer">
+  <div class="session-viewer-header">
+    <div class="session-viewer-meta">
+      <span class="session-viewer-title" id="sessionViewerTitle">Conversation</span>
+      <span class="session-viewer-date" id="sessionViewerDate"></span>
     </div>
+    <div class="session-viewer-actions">
+      <button class="session-action-btn" onclick="restoreSession()" title="Reprendre cette conversation">
+        <i class="fa-solid fa-arrow-right"></i> Reprendre
+      </button>
+      <button class="session-action-btn danger" onclick="deleteCurrentSession()" title="Supprimer">
+        <i class="fa-solid fa-trash-can"></i>
+      </button>
+      <button class="session-close-btn" onclick="closeSessionViewer()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+  <div class="session-viewer-body" id="sessionViewerBody">
+    <!-- Messages rendered here -->
+  </div>
 </div>
 
 <script src="/script.js"></script>

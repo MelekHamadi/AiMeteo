@@ -1,112 +1,239 @@
-const chat = document.getElementById("chat");
+// Will be set after DOM switches to chat mode
+let chat = null;
 let selectedProject = null;
 let projectsList = [];
-// Contexte conversationnel — mémorise le dernier projet mentionné pour résoudre les pronoms
 let conversationContext = { lastProject: null };
+let hasStartedChat = false;
 
-/* ================= HISTORY MANAGEMENT ================= */
-const HISTORY_KEY = "pmo_chat_history";
+/* =====================================================================
+   SESSION STORAGE
+   ===================================================================== */
+const SESSIONS_KEY = "pmo_sessions_v2";
+const RECENTS_HIDDEN_KEY = "pmo_recents_hidden";
 
-function getHistory() {
-    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}"); }
-    catch { return {}; }
+let currentSessionId = null;
+let viewingSessionId = null;
+
+function getSessions() {
+    try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || "[]"); }
+    catch { return []; }
+}
+function saveSessions(sessions) {
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
 }
 
-function saveMessage(projectKey, role, content) {
-    const history = getHistory();
-    const key = projectKey || "__global__";
-    if (!history[key]) history[key] = [];
-    history[key].push({
-        role,
-        content,
-        timestamp: new Date().toISOString(),
-        id: Date.now() + Math.random()
-    });
-    if (history[key].length > 50) history[key] = history[key].slice(-50);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-    renderHistoryPanel();
+function createSession(project) {
+    const sessions = getSessions();
+    const id = "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+    const now = new Date().toISOString();
+    sessions.unshift({ id, title: null, project: project || null, messages: [], createdAt: now, updatedAt: now });
+    saveSessions(sessions);
+    return id;
 }
 
-function clearHistory(projectKey) {
-    const history = getHistory();
-    const key = projectKey || "__global__";
-    delete history[key];
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-    renderHistoryPanel();
+function appendMessageToSession(sessionId, role, content) {
+    const sessions = getSessions();
+    const idx = sessions.findIndex(s => s.id === sessionId);
+    if (idx === -1) return;
+    const msg = { role, content, timestamp: new Date().toISOString() };
+    sessions[idx].messages.push(msg);
+    sessions[idx].updatedAt = msg.timestamp;
+    if (!sessions[idx].title && role === "user") {
+        sessions[idx].title = content.trim().substring(0, 60) + (content.length > 60 ? "…" : "");
+    }
+    saveSessions(sessions);
+    renderRecentsList();
 }
 
-function formatTimestamp(iso) {
-    const d = new Date(iso);
+function deleteSession(sessionId) {
+    let sessions = getSessions();
+    sessions = sessions.filter(s => s.id !== sessionId);
+    saveSessions(sessions);
+    if (currentSessionId === sessionId) currentSessionId = null;
+    if (viewingSessionId === sessionId) closeSessionViewer();
+    renderRecentsList();
+}
+
+function getDateGroup(isoDate) {
+    const d = new Date(isoDate);
     const now = new Date();
-    const diff = now - d;
-    if (diff < 60000) return "à l'instant";
-    if (diff < 3600000) return `il y a ${Math.floor(diff / 60000)} min`;
-    if (diff < 86400000) return `il y a ${Math.floor(diff / 3600000)} h`;
-    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+    const diffDays = Math.floor((now - d) / 86400000);
+    if (diffDays === 0) return "Aujourd'hui";
+    if (diffDays === 1) return "Hier";
+    if (diffDays < 7) return "Cette semaine";
+    if (diffDays < 30) return "Ce mois-ci";
+    return "Plus ancien";
 }
 
-function renderHistoryPanel() {
-    const body = document.getElementById("historyBody");
-    if (!body) return;
-    const history = getHistory();
-    const keys = Object.keys(history);
+const GROUP_ORDER = ["Aujourd'hui", "Hier", "Cette semaine", "Ce mois-ci", "Plus ancien"];
 
-    if (keys.length === 0) {
-        body.innerHTML = `<div class="history-empty"><i class="fa-regular fa-clock"></i><span>Aucun historique</span></div>`;
+function renderRecentsList() {
+    const list = document.getElementById("recentsList");
+    if (!list) return;
+    const sessions = getSessions();
+
+    if (sessions.length === 0) {
+        list.innerHTML = `
+            <div class="recents-empty">
+                <i class="fa-regular fa-message"></i>
+                <span>Aucune conversation</span>
+            </div>`;
         return;
     }
 
-    let html = "";
-    keys.reverse().forEach(key => {
-        const msgs = history[key];
-        const displayName = key === "__global__" ? "Tous les projets" : key;
-        const userMsgs = msgs.filter(m => m.role === "user");
-        const count = userMsgs.length;
-
-        html += `
-        <div class="history-group">
-            <div class="history-group-header">
-                <div class="history-group-meta">
-                    <span class="history-project-name">${displayName}</span>
-                    <span class="history-count">${count} échange${count > 1 ? "s" : ""}</span>
-                </div>
-                <button class="history-clear-btn" onclick="clearHistory('${key === '__global__' ? '' : key}')" title="Supprimer">
-                    <i class="fa-solid fa-trash-can"></i>
-                </button>
-            </div>
-            <div class="history-messages">`;
-
-        msgs.slice(-4).reverse().forEach(msg => {
-            if (msg.role === "user") {
-                html += `
-                <div class="history-item" onclick="replayMessage('${escapeAttr(msg.content)}')">
-                    <div class="history-item-role user-role"><i class="fa-solid fa-user"></i></div>
-                    <div class="history-item-body">
-                        <span class="history-item-text">${escapeHtml(msg.content.substring(0, 70))}${msg.content.length > 70 ? "…" : ""}</span>
-                        <span class="history-item-time">${formatTimestamp(msg.timestamp)}</span>
-                    </div>
-                </div>`;
-            }
-        });
-
-        html += `</div></div>`;
+    const groups = {};
+    sessions.forEach(s => {
+        const g = getDateGroup(s.updatedAt || s.createdAt);
+        if (!groups[g]) groups[g] = [];
+        groups[g].push(s);
     });
 
-    body.innerHTML = html;
+    let html = "";
+    GROUP_ORDER.forEach(groupName => {
+        if (!groups[groupName]) return;
+        html += `<div class="recents-date-group">${groupName}</div>`;
+        groups[groupName].forEach(s => {
+            const isActive = s.id === currentSessionId ? "active-session" : "";
+            const projectTag = s.project ? ` — ${s.project}` : "";
+            const title = escapeHtml(s.title || "Nouvelle conversation") + escapeHtml(projectTag);
+            html += `
+                <div class="recent-item ${isActive}" data-id="${s.id}">
+                    <button class="recent-item-btn" onclick="openSessionViewer('${s.id}')" title="${title}">
+                        ${title}
+                    </button>
+                    <div class="recent-item-actions">
+                        <button class="recent-del-btn" onclick="confirmDeleteSession(event,'${s.id}')" title="Supprimer">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>`;
+        });
+    });
+
+    list.innerHTML = html;
 }
 
-function replayMessage(content) {
-    const input = document.getElementById("question");
-    input.value = content;
-    input.focus();
-    showHistory(false);
+function confirmDeleteSession(event, sessionId) {
+    event.stopPropagation();
+    deleteSession(sessionId);
+    showToast("Conversation supprimée");
 }
 
-function escapeAttr(str) {
-    return str.replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, " ");
+function toggleRecents() {
+    const section = document.getElementById("recentsSection");
+    const hidden = section.classList.toggle("collapsed-recents");
+    localStorage.setItem(RECENTS_HIDDEN_KEY, hidden ? "1" : "0");
 }
 
-/* ================= CONTEXTUAL CHIPS ================= */
+/* ---------- SESSION VIEWER ---------- */
+function openSessionViewer(sessionId) {
+    const sessions = getSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    viewingSessionId = sessionId;
+    document.getElementById("sessionViewerTitle").textContent = session.title || "Nouvelle conversation";
+    document.getElementById("sessionViewerDate").textContent =
+        formatFullDate(session.createdAt) + (session.project ? ` · ${session.project}` : "");
+
+    const body = document.getElementById("sessionViewerBody");
+    if (!session.messages || session.messages.length === 0) {
+        body.innerHTML = `<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:40px 0;">Aucun message dans cette conversation.</div>`;
+    } else {
+        body.innerHTML = session.messages.map(msg => {
+            if (msg.role === "system") return "";
+            const isUser = msg.role === "user";
+            const avatarClass = isUser ? "sv-user" : "sv-bot";
+            const bubbleClass = isUser ? "sv-user" : "sv-bot";
+            const icon = isUser ? "fa-user" : "fa-robot";
+            const contentHtml = isUser ? escapeHtml(msg.content) : renderMarkdown(msg.content);
+            return `
+                <div class="sv-msg ${isUser ? "sv-user" : ""}">
+                    <div class="sv-avatar ${avatarClass}"><i class="fa-solid ${icon}"></i></div>
+                    <div class="sv-bubble ${bubbleClass}">${contentHtml}</div>
+                </div>`;
+        }).join("");
+    }
+
+    document.getElementById("sessionViewer").classList.add("open");
+    document.getElementById("sessionOverlay").classList.add("active");
+    setTimeout(() => { body.scrollTop = body.scrollHeight; }, 60);
+}
+
+function closeSessionViewer() {
+    document.getElementById("sessionViewer").classList.remove("open");
+    document.getElementById("sessionOverlay").classList.remove("active");
+    viewingSessionId = null;
+}
+
+function restoreSession() {
+    const sessions = getSessions();
+    const session = sessions.find(s => s.id === viewingSessionId);
+    if (!session) return;
+
+    closeSessionViewer();
+    hasStartedChat = false;
+    const chatBodyR = document.getElementById("chatBody");
+    const welcomeR = document.getElementById("welcomeScreen");
+    if (welcomeR) { welcomeR.style.display = "none"; welcomeR.style.opacity = ""; }
+    if (chatBodyR) chatBodyR.style.display = "flex";
+    chat = document.getElementById("chat");
+    hasStartedChat = true;
+
+    const taChatR = document.getElementById("questionChat");
+    if (taChatR && !taChatR._wired) {
+        taChatR._wired = true;
+        taChatR.addEventListener("input", () => { taChatR.style.height = "auto"; taChatR.style.height = taChatR.scrollHeight + "px"; });
+        taChatR.addEventListener("keydown", function(e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+    }
+
+    chat.innerHTML = "";
+    conversationContext = { lastProject: null };
+
+    if (session.project) {
+        selectedProject = session.project;
+        const disp = document.getElementById("selected-project-display");
+        if (disp) disp.textContent = session.project;
+        conversationContext.lastProject = session.project;
+    } else {
+        selectedProject = null;
+        const disp = document.getElementById("selected-project-display");
+        if (disp) disp.textContent = "Tous les projets";
+    }
+
+    session.messages.forEach(msg => {
+        if (msg.role === "system") return;
+        if (msg.role === "user") {
+            createMessage(msg.content, "user", null);
+        } else if (msg.role === "bot") {
+            const msgId = Date.now() + Math.random();
+            const bubble = createMessage("", "bot", msgId);
+            bubble.innerHTML = renderMarkdown(msg.content);
+        }
+    });
+
+    currentSessionId = session.id;
+    showToast("Conversation restaurée");
+    renderChips();
+    showChips();
+}
+
+function deleteCurrentSession() {
+    if (!viewingSessionId) return;
+    deleteSession(viewingSessionId);
+    closeSessionViewer();
+    showToast("Conversation supprimée");
+}
+
+function formatFullDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+/* =====================================================================
+   CONTEXTUAL CHIPS
+   ===================================================================== */
 const CHIP_SUGGESTIONS = {
     default: [
         { label: "Bilan des risques", query: "Bilan des risques sur tous les projets" },
@@ -124,16 +251,18 @@ const CHIP_SUGGESTIONS = {
 };
 
 function renderChips() {
-    const container = document.getElementById("chipsContainer");
-    if (!container) return;
     const chips = selectedProject
         ? CHIP_SUGGESTIONS.project(selectedProject)
         : CHIP_SUGGESTIONS.default;
-    container.innerHTML = chips.map(chip => `
+    const html = chips.map(chip => `
         <button class="chip-btn" onclick="useChip('${escapeAttr(chip.query)}')">
             ${escapeHtml(chip.label)}
         </button>
     `).join("");
+    const cWelcome = document.getElementById("chipsContainerWelcome");
+    const cChat = document.getElementById("chipsContainer");
+    if (cWelcome) cWelcome.innerHTML = html;
+    if (cChat) cChat.innerHTML = html;
 }
 
 function useChip(query) {
@@ -143,29 +272,9 @@ function useChip(query) {
     setTimeout(() => sendMessage(), 100);
 }
 
-/* ================= HISTORY PANEL TOGGLE ================= */
-let historyVisible = false;
-
-function showHistory(show) {
-    historyVisible = show;
-    const panel = document.getElementById("historyPanel");
-    const overlay = document.getElementById("historyOverlay");
-    if (!panel) return;
-    if (show) {
-        renderHistoryPanel();
-        panel.classList.add("open");
-        if (overlay) overlay.classList.add("active");
-    } else {
-        panel.classList.remove("open");
-        if (overlay) overlay.classList.remove("active");
-    }
-}
-
-function toggleHistory() {
-    showHistory(!historyVisible);
-}
-
-/* ================= MARKDOWN RENDERER ================= */
+/* =====================================================================
+   MARKDOWN RENDERER
+   ===================================================================== */
 function renderMarkdown(text) {
     if (!text) return "";
 
@@ -178,30 +287,25 @@ function renderMarkdown(text) {
 
     const lines = text.split("\n");
     let html = "";
-    let inList = false;
-    let inOrderedList = false;
-    let inTable = false;
+    let inList = false, inOrderedList = false, inTable = false;
     let tableRows = [];
 
     const flushTable = () => {
-        if (tableRows.length === 0) return;
-        let tableHtml = '<div class="resp-table-wrap"><table class="resp-table">';
+        if (!tableRows.length) return;
+        let th = '<div class="resp-table-wrap"><table class="resp-table">';
         tableRows.forEach((row, i) => {
             const cells = row.split("|").map(c => c.trim()).filter(Boolean);
             if (i === 0) {
-                tableHtml += "<thead><tr>" + cells.map(c => `<th>${c}</th>`).join("") + "</tr></thead><tbody>";
+                th += "<thead><tr>" + cells.map(c => `<th>${c}</th>`).join("") + "</tr></thead><tbody>";
             } else if (i === 1 && cells.every(c => /^[-:]+$/.test(c))) {
                 // skip separator
             } else {
-                tableHtml += "<tr>" + cells.map(c => `<td>${inlineMarkdown(c)}</td>`).join("") + "</tr>";
+                th += "<tr>" + cells.map(c => `<td>${inlineMarkdown(c)}</td>`).join("") + "</tr>";
             }
         });
-        tableHtml += "</tbody></table></div>";
-        html += tableHtml;
-        tableRows = [];
-        inTable = false;
+        th += "</tbody></table></div>";
+        html += th; tableRows = []; inTable = false;
     };
-
     const flushList = () => {
         if (inList) { html += "</ul>"; inList = false; }
         if (inOrderedList) { html += "</ol>"; inOrderedList = false; }
@@ -211,22 +315,14 @@ function renderMarkdown(text) {
         const raw = lines[i];
         const line = raw.trim();
 
-        if (line.startsWith("|")) {
-            flushList();
-            inTable = true;
-            tableRows.push(line);
-            continue;
-        } else if (inTable) {
-            flushTable();
-        }
-
+        if (line.startsWith("|")) { flushList(); inTable = true; tableRows.push(line); continue; }
+        else if (inTable) { flushTable(); }
         if (!line) { flushList(); continue; }
 
         const h4 = line.match(/^####\s+(.+)/);
         const h3 = line.match(/^###\s+(.+)/);
         const h2 = line.match(/^##\s+(.+)/);
         const h1 = line.match(/^#\s+(.+)/);
-
         if (h1) { flushList(); html += `<h1 class="resp-h1">${inlineMarkdown(h1[1])}</h1>`; continue; }
         if (h2) { flushList(); html += `<h2 class="resp-h2">${inlineMarkdown(h2[1])}</h2>`; continue; }
         if (h3) { flushList(); html += `<h3 class="resp-h3 ${detectSectionClass(h3[1])}">${inlineMarkdown(h3[1])}</h3>`; continue; }
@@ -236,16 +332,13 @@ function renderMarkdown(text) {
         if (bullet) {
             if (inOrderedList) { html += "</ol>"; inOrderedList = false; }
             if (!inList) { html += "<ul class='resp-list'>"; inList = true; }
-            html += `<li>${inlineMarkdown(bullet[1])}</li>`;
-            continue;
+            html += `<li>${inlineMarkdown(bullet[1])}</li>`; continue;
         }
-
         const ordered = line.match(/^\d+\.\s+(.+)/);
         if (ordered) {
             if (inList) { html += "</ul>"; inList = false; }
             if (!inOrderedList) { html += "<ol class='resp-list resp-olist'>"; inOrderedList = true; }
-            html += `<li>${inlineMarkdown(ordered[1])}</li>`;
-            continue;
+            html += `<li>${inlineMarkdown(ordered[1])}</li>`; continue;
         }
 
         const actionLine = line.match(/Action\s*:\s*(.+?)\s*\|\s*Impact\s*:\s*(.+?)\s*\|\s*Effort\s*:\s*(.+)/i);
@@ -278,9 +371,7 @@ function renderMarkdown(text) {
         flushList();
         if (line.length > 0) html += `<p class="resp-p">${inlineMarkdown(line)}</p>`;
     }
-
-    flushList();
-    flushTable();
+    flushList(); flushTable();
     return html;
 }
 
@@ -321,20 +412,19 @@ function escapeHtml(text) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
 }
+function escapeAttr(str) {
+    return str.replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, " ");
+}
 
-/* ================= MESSAGE UI ================= */
+/* =====================================================================
+   MESSAGE UI
+   ===================================================================== */
 let lastUserMessage = "";
 let feedbackState = {};
 
 function createMessage(text, type, msgId) {
     const row = document.createElement("div");
     row.className = "msg-row " + type;
-
-    const avatar = document.createElement("div");
-    avatar.className = `avatar ${type}`;
-    avatar.innerHTML = type === "user"
-        ? '<i class="fa-solid fa-user"></i>'
-        : '<i class="fa-solid fa-robot"></i>';
 
     const wrapper = document.createElement("div");
     wrapper.className = "msg-wrapper";
@@ -349,22 +439,29 @@ function createMessage(text, type, msgId) {
 
     wrapper.appendChild(bubble);
 
+    // Action bar for bot messages (copy, thumbs, retry)
     if (type === "bot" && msgId) {
-        const actionBar = createActionBar(msgId, text, bubble);
-        wrapper.appendChild(actionBar);
+        wrapper.appendChild(createBotActionBar(msgId, text, bubble));
     }
 
-    row.appendChild(avatar);
+    // Action bar for user messages (copy, edit, retry)
+    if (type === "user") {
+        wrapper.appendChild(createUserActionBar(text, bubble, row));
+    }
+
     row.appendChild(wrapper);
-    chat.appendChild(row);
-    chat.scrollTop = chat.scrollHeight;
+
+    const chatEl = chat || document.getElementById("chat");
+    if (chatEl) { chatEl.appendChild(row); chatEl.scrollTop = chatEl.scrollHeight; }
     return bubble;
 }
 
-function createActionBar(msgId, rawText, bubble) {
+/* Action bar for BOT messages: copy · thumbs up · thumbs down · retry */
+function createBotActionBar(msgId, rawText, bubble) {
     const bar = document.createElement("div");
     bar.className = "msg-action-bar";
 
+    // Copy
     const copyBtn = document.createElement("button");
     copyBtn.className = "msg-action-btn";
     copyBtn.title = "Copier la réponse";
@@ -374,44 +471,40 @@ function createActionBar(msgId, rawText, bubble) {
         navigator.clipboard.writeText(plain).then(() => {
             copyBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
             copyBtn.classList.add("copied");
-            setTimeout(() => {
-                copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i>';
-                copyBtn.classList.remove("copied");
-            }, 1800);
+            setTimeout(() => { copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i>'; copyBtn.classList.remove("copied"); }, 1800);
         });
     };
 
+    // Thumbs up
     const thumbUpBtn = document.createElement("button");
     thumbUpBtn.className = "msg-action-btn";
     thumbUpBtn.title = "Bonne réponse";
     thumbUpBtn.innerHTML = '<i class="fa-regular fa-thumbs-up"></i>';
+
+    // Thumbs down
+    const thumbDownBtn = document.createElement("button");
+    thumbDownBtn.className = "msg-action-btn";
+    thumbDownBtn.title = "Réponse incorrecte";
+    thumbDownBtn.innerHTML = '<i class="fa-regular fa-thumbs-down"></i>';
+
     thumbUpBtn.onclick = () => {
         if (feedbackState[msgId] === "up") {
-            feedbackState[msgId] = null;
-            thumbUpBtn.classList.remove("active-feedback");
+            feedbackState[msgId] = null; thumbUpBtn.classList.remove("active-feedback");
             thumbUpBtn.innerHTML = '<i class="fa-regular fa-thumbs-up"></i>';
         } else {
-            feedbackState[msgId] = "up";
-            thumbUpBtn.classList.add("active-feedback");
+            feedbackState[msgId] = "up"; thumbUpBtn.classList.add("active-feedback");
             thumbUpBtn.innerHTML = '<i class="fa-solid fa-thumbs-up"></i>';
             thumbDownBtn.classList.remove("active-feedback");
             thumbDownBtn.innerHTML = '<i class="fa-regular fa-thumbs-down"></i>';
             showToast("Merci pour votre retour !");
         }
     };
-
-    const thumbDownBtn = document.createElement("button");
-    thumbDownBtn.className = "msg-action-btn";
-    thumbDownBtn.title = "Réponse incorrecte";
-    thumbDownBtn.innerHTML = '<i class="fa-regular fa-thumbs-down"></i>';
     thumbDownBtn.onclick = () => {
         if (feedbackState[msgId] === "down") {
-            feedbackState[msgId] = null;
-            thumbDownBtn.classList.remove("active-feedback");
+            feedbackState[msgId] = null; thumbDownBtn.classList.remove("active-feedback");
             thumbDownBtn.innerHTML = '<i class="fa-regular fa-thumbs-down"></i>';
         } else {
-            feedbackState[msgId] = "down";
-            thumbDownBtn.classList.add("active-feedback");
+            feedbackState[msgId] = "down"; thumbDownBtn.classList.add("active-feedback");
             thumbDownBtn.innerHTML = '<i class="fa-solid fa-thumbs-down"></i>';
             thumbUpBtn.classList.remove("active-feedback");
             thumbUpBtn.innerHTML = '<i class="fa-regular fa-thumbs-up"></i>';
@@ -419,9 +512,10 @@ function createActionBar(msgId, rawText, bubble) {
         }
     };
 
+    // Retry (regenerate)
     const retryBtn = document.createElement("button");
     retryBtn.className = "msg-action-btn";
-    retryBtn.title = "Réessayer";
+    retryBtn.title = "Régénérer la réponse";
     retryBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
     retryBtn.onclick = () => {
         if (lastUserMessage) {
@@ -435,31 +529,78 @@ function createActionBar(msgId, rawText, bubble) {
     bar.appendChild(thumbUpBtn);
     bar.appendChild(thumbDownBtn);
     bar.appendChild(retryBtn);
+    return bar;
+}
 
+/* Action bar for USER messages: copy · edit · resend */
+function createUserActionBar(text, bubble, row) {
+    const bar = document.createElement("div");
+    bar.className = "msg-action-bar";
+
+    // Copy
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "msg-action-btn";
+    copyBtn.title = "Copier le message";
+    copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+    copyBtn.onclick = () => {
+        navigator.clipboard.writeText(text).then(() => {
+            copyBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
+            copyBtn.classList.add("copied");
+            setTimeout(() => { copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i>'; copyBtn.classList.remove("copied"); }, 1800);
+        });
+    };
+
+    // Edit — puts the message text back in the input for editing
+    const editBtn = document.createElement("button");
+    editBtn.className = "msg-action-btn";
+    editBtn.title = "Modifier le message";
+    editBtn.innerHTML = '<i class="fa-regular fa-pen-to-square"></i>';
+    editBtn.onclick = () => {
+        const input = getActiveInput();
+        if (!input) return;
+        input.value = text;
+        input.style.height = "auto";
+        input.style.height = input.scrollHeight + "px";
+        input.focus();
+        // Move cursor to end
+        input.selectionStart = input.selectionEnd = input.value.length;
+        showToast("Message copié dans le champ de saisie");
+    };
+
+    // Resend — re-ask the exact same question
+    const resendBtn = document.createElement("button");
+    resendBtn.className = "msg-action-btn";
+    resendBtn.title = "Renvoyer ce message";
+    resendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+    resendBtn.onclick = () => {
+        askQuestion(text);
+    };
+
+    bar.appendChild(copyBtn);
+    bar.appendChild(editBtn);
+    bar.appendChild(resendBtn);
     return bar;
 }
 
 function showToast(message) {
     let toast = document.getElementById("pmo-toast");
-    if (!toast) {
-        toast = document.createElement("div");
-        toast.id = "pmo-toast";
-        document.body.appendChild(toast);
-    }
+    if (!toast) { toast = document.createElement("div"); toast.id = "pmo-toast"; document.body.appendChild(toast); }
     toast.textContent = message;
     toast.classList.add("show");
     setTimeout(() => toast.classList.remove("show"), 2500);
 }
 
 function addSystemMessage(text) {
+    const chatEl = chat || document.getElementById("chat");
+    if (!chatEl) return;
     const row = document.createElement("div");
     row.className = "msg-row system";
     const bubble = document.createElement("div");
     bubble.className = "message system";
     bubble.innerHTML = `<i class="fa-solid fa-info-circle"></i> ${text}`;
     row.appendChild(bubble);
-    chat.appendChild(row);
-    chat.scrollTop = chat.scrollHeight;
+    chatEl.appendChild(row);
+    chatEl.scrollTop = chatEl.scrollHeight;
 }
 
 async function streamRender(element, html) {
@@ -467,46 +608,106 @@ async function streamRender(element, html) {
     const temp = document.createElement("div");
     temp.innerHTML = html;
     const nodes = Array.from(temp.childNodes);
+    const chatEl = chat || document.getElementById("chat");
     for (const node of nodes) {
         element.appendChild(node.cloneNode(true));
-        chat.scrollTop = chat.scrollHeight;
+        if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
         await new Promise(r => setTimeout(r, 18));
     }
 }
 
-/* ================= SEND MESSAGE ================= */
+/* =====================================================================
+   SEND MESSAGE
+   ===================================================================== */
+function getActiveInput() {
+    if (!hasStartedChat) return document.getElementById("question");
+    return document.getElementById("questionChat");
+}
+
+function switchToChatMode() {
+    if (hasStartedChat) return;
+    hasStartedChat = true;
+
+    const welcome = document.getElementById("welcomeScreen");
+    const chatBody = document.getElementById("chatBody");
+
+    welcome.style.transition = "opacity 0.25s ease, transform 0.25s ease";
+    welcome.style.opacity = "0";
+    welcome.style.transform = "translateY(-12px)";
+
+    setTimeout(() => {
+        welcome.style.display = "none";
+        chatBody.style.display = "flex";
+
+        chat = document.getElementById("chat");
+
+        const ta = document.getElementById("questionChat");
+        if (ta) {
+            ta.addEventListener("input", () => {
+                ta.style.height = "auto";
+                ta.style.height = ta.scrollHeight + "px";
+            });
+            ta.addEventListener("keydown", function(e) {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            ta.focus();
+        }
+        renderChips();
+        showChips();
+    }, 240);
+}
+
 async function sendMessage() {
-    const input = document.getElementById("question");
+    const input = getActiveInput();
+    if (!input) return;
     const message = input.value.trim();
     if (!message) return;
     input.value = "";
     input.style.height = "auto";
-    hideChips();
-    await askQuestion(message);
+
+    if (!hasStartedChat) {
+        switchToChatMode();
+        setTimeout(() => {
+            hideChips();
+            askQuestion(message);
+        }, 260);
+    } else {
+        hideChips();
+        await askQuestion(message);
+    }
 }
 
 async function askQuestion(message) {
     lastUserMessage = message;
-    saveMessage(selectedProject, "user", message);
+
+    if (!chat) chat = document.getElementById("chat");
+
+    if (!currentSessionId) {
+        currentSessionId = createSession(selectedProject);
+    }
+
+    appendMessageToSession(currentSessionId, "user", message);
     createMessage(message, "user", null);
 
+    // Loading bubble
     const loadingRow = document.createElement("div");
     loadingRow.className = "msg-row bot";
-    const loadingAvatar = document.createElement("div");
-    loadingAvatar.className = "avatar bot";
-    loadingAvatar.innerHTML = '<i class="fa-solid fa-robot"></i>';
-    const loadingBubble = document.createElement("div");
-    loadingBubble.className = "message bot loading-bubble";
-    loadingBubble.innerHTML = `<span class="dot"></span><span class="dot"></span><span class="dot"></span>`;
-    loadingRow.appendChild(loadingAvatar);
-    loadingRow.appendChild(loadingBubble);
+    const lb = document.createElement("div");
+    lb.className = "msg-wrapper";
+    const lbInner = document.createElement("div");
+    lbInner.className = "message bot loading-bubble";
+    lbInner.innerHTML = `<span class="dot"></span><span class="dot"></span><span class="dot"></span>`;
+    lb.appendChild(lbInner);
+    loadingRow.appendChild(lb);
     chat.appendChild(loadingRow);
     chat.scrollTop = chat.scrollHeight;
 
     try {
         const payload = { message };
         if (selectedProject) payload.project = selectedProject;
-        // Envoyer le dernier projet mentionné pour résoudre les pronoms ("Et sa santé ?")
         if (conversationContext.lastProject) payload.context_project = conversationContext.lastProject;
 
         const res = await fetch("/chat", {
@@ -514,21 +715,20 @@ async function askQuestion(message) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
-
         const data = await res.json();
         chat.removeChild(loadingRow);
 
         const answer = data.answer || "Information non disponible.";
-        // Mémoriser le projet détecté pour le prochain message
         if (data.detected_project) {
             conversationContext.lastProject = data.detected_project;
         }
+
         const msgId = Date.now();
         const renderedHtml = renderMarkdown(answer);
         const botBubble = createMessage("", "bot", msgId);
         await streamRender(botBubble, renderedHtml);
 
-        saveMessage(selectedProject, "bot", answer);
+        appendMessageToSession(currentSessionId, "bot", answer);
         showChips();
 
     } catch (e) {
@@ -538,18 +738,21 @@ async function askQuestion(message) {
     }
 }
 
-/* ================= CHIPS ================= */
+/* =====================================================================
+   CHIPS
+   ===================================================================== */
 function showChips() {
     const zone = document.getElementById("chipsZone");
     if (zone) zone.style.display = "flex";
 }
-
 function hideChips() {
     const zone = document.getElementById("chipsZone");
     if (zone) zone.style.display = "none";
 }
 
-/* ================= PROJECT SELECTOR ================= */
+/* =====================================================================
+   PROJECT SELECTOR
+   ===================================================================== */
 function toggleProjectSelector() {
     const dropdown = document.getElementById("projectDropdown");
     const arrow = document.getElementById("selector-arrow");
@@ -566,8 +769,8 @@ document.addEventListener("click", function(event) {
         dropdown.classList.remove("show");
         if (arrow) arrow.style.transform = "rotate(0deg)";
     }
-    const overlay = document.getElementById("historyOverlay");
-    if (overlay && event.target === overlay) showHistory(false);
+    const overlay = document.getElementById("sessionOverlay");
+    if (overlay && event.target === overlay) closeSessionViewer();
 });
 
 async function loadProjects() {
@@ -579,10 +782,7 @@ async function loadProjects() {
         const statusResponse = await fetch("/project_status");
         const statusData = await statusResponse.json();
         displayProjects(projectsList, statusData);
-
-        // ===== BADGE ALERTE SIDEBAR =====
         updateSidebarAlertBadge(statusData);
-
     } catch (error) {
         console.error("Erreur chargement projets:", error);
         const listDiv = document.getElementById("projectList");
@@ -590,67 +790,25 @@ async function loadProjects() {
     }
 }
 
-/**
- * BADGE ALERTE SIDEBAR
- * Compte les projets critiques et affiche un badge rouge sur le sélecteur de projet.
- * Aussi affiche un point d'alerte pulsant sur chaque projet critique dans la liste.
- */
 function updateSidebarAlertBadge(statusData) {
     if (!statusData) return;
-
-    const criticalProjects = Object.entries(statusData)
-        .filter(([, v]) => v.risk === "critique")
-        .map(([name]) => name);
-
+    const criticalProjects = Object.entries(statusData).filter(([, v]) => v.risk === "critique").map(([name]) => name);
     const count = criticalProjects.length;
 
-    // Badge sur le header du sélecteur (nombre de projets critiques)
     let badge = document.getElementById("sidebar-alert-badge");
     if (!badge) {
         badge = document.createElement("span");
         badge.id = "sidebar-alert-badge";
-        badge.style.cssText = `
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 18px;
-            height: 18px;
-            padding: 0 5px;
-            background: #A32D2D;
-            color: #fff;
-            border-radius: 99px;
-            font-size: 11px;
-            font-weight: 700;
-            margin-left: auto;
-            flex-shrink: 0;
-            animation: pulse-badge 2s infinite;
-        `;
-        // Injecter le CSS de l'animation une seule fois
+        badge.style.cssText = `display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:#A32D2D;color:#fff;border-radius:99px;font-size:11px;font-weight:700;margin-left:auto;flex-shrink:0;`;
         if (!document.getElementById("badge-anim-style")) {
             const style = document.createElement("style");
             style.id = "badge-anim-style";
-            style.textContent = `
-                @keyframes pulse-badge {
-                    0%, 100% { opacity: 1; transform: scale(1); }
-                    50% { opacity: 0.75; transform: scale(1.15); }
-                }
-                .project-item .alert-dot {
-                    width: 7px;
-                    height: 7px;
-                    background: #A32D2D;
-                    border-radius: 50%;
-                    flex-shrink: 0;
-                    box-shadow: 0 0 5px #A32D2D88;
-                    animation: pulse-badge 2s infinite;
-                }
-            `;
+            style.textContent = `@keyframes pulse-badge{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.75;transform:scale(1.15)}}.project-item .alert-dot{width:7px;height:7px;background:#A32D2D;border-radius:50%;flex-shrink:0;box-shadow:0 0 5px #A32D2D88;animation:pulse-badge 2s infinite}`;
             document.head.appendChild(style);
         }
-
         const header = document.querySelector(".project-selector-header");
         if (header) header.appendChild(badge);
     }
-
     if (count > 0) {
         badge.textContent = count;
         badge.title = `${count} projet${count > 1 ? "s" : ""} critique${count > 1 ? "s" : ""} : ${criticalProjects.join(", ")}`;
@@ -666,8 +824,7 @@ function displayProjects(projects, statusData) {
     const searchTerm = document.getElementById("projectSearch") ? document.getElementById("projectSearch").value.toLowerCase() : "";
 
     let html = `
-        <div class="project-item all-projects ${!selectedProject ? "selected" : ""}"
-             onclick="selectProject(null, 'Tous les projets', event)">
+        <div class="project-item all-projects ${!selectedProject ? "selected" : ""}" onclick="selectProject(null,'Tous les projets',event)">
             <i class="fa-solid fa-globe"></i>
             <span class="project-name">Tous les projets</span>
             <span class="project-status unknown"></span>
@@ -679,16 +836,9 @@ function displayProjects(projects, statusData) {
             const statusClass = status === "faible" ? "healthy" : status === "critique" ? "critical" : "unknown";
             const selectedClass = (selectedProject === proj) ? "selected" : "";
             const isCritical = status === "critique";
-
-            // Point rouge pulsant + tooltip pour les projets critiques
-            const alertDot = isCritical
-                ? `<span class="alert-dot" title="Projet critique — attention requise"></span>`
-                : "";
-
+            const alertDot = isCritical ? `<span class="alert-dot" title="Projet critique"></span>` : "";
             html += `
-                <div class="project-item ${selectedClass}"
-                     onclick="selectProject('${proj.replace(/'/g, "\\'")}', '${proj.replace(/'/g, "\\'")}', event)"
-                     title="${isCritical ? '⚠ Projet critique' : proj}">
+                <div class="project-item ${selectedClass}" onclick="selectProject('${proj.replace(/'/g,"\\'")}','${proj.replace(/'/g,"\\'")}',event)" title="${isCritical ? '⚠ Projet critique' : proj}">
                     <i class="fa-solid fa-folder${isCritical ? '-open' : ''}" style="${isCritical ? 'color:#A32D2D' : ''}"></i>
                     <span class="project-name" style="${isCritical ? 'font-weight:600' : ''}">${proj}</span>
                     ${alertDot}
@@ -720,27 +870,46 @@ function selectProject(projectName, displayName, event) {
     showChips();
 }
 
-/* ================= NOUVEAU CHAT ================= */
+/* =====================================================================
+   NOUVEAU CHAT
+   ===================================================================== */
 function newChat() {
+    currentSessionId = null;
+    hasStartedChat = false;
+
     selectedProject = null;
     const displayElement = document.getElementById("selected-project-display");
     if (displayElement) displayElement.textContent = "Tous les projets";
     document.querySelectorAll(".project-item").forEach(item => item.classList.remove("selected"));
     const allProjectsItem = document.querySelector(".all-projects");
     if (allProjectsItem) allProjectsItem.classList.add("selected");
-    chat.innerHTML = "";
-    conversationContext = { lastProject: null };  // Reset contexte conversationnel
+
+    const chatEl = document.getElementById("chat");
+    if (chatEl) chatEl.innerHTML = "";
+    chat = null;
+
+    conversationContext = { lastProject: null };
+
+    const welcome = document.getElementById("welcomeScreen");
+    const chatBody = document.getElementById("chatBody");
+    if (chatBody) chatBody.style.display = "none";
+    if (welcome) {
+        welcome.style.display = "";
+        welcome.style.opacity = "";
+        welcome.style.transform = "";
+        welcome.style.transition = "";
+    }
+
     const textarea = document.getElementById("question");
-    if (textarea) { textarea.style.height = "auto"; textarea.value = ""; }
+    if (textarea) { textarea.style.height = "auto"; textarea.value = ""; textarea.focus(); }
+
     renderChips();
-    showChips();
-    setTimeout(() => {
-        addSystemMessage("Nouvelle conversation — tout réinitialisé");
-        setTimeout(() => addSystemMessage("Mode actif : Tous les projets"), 600);
-    }, 100);
+    renderRecentsList();
 }
 
-/* ================= AUTRES FONCTIONS ================= */
+/* =====================================================================
+   AUTRES FONCTIONS
+   ===================================================================== */
 function toggleSidebar() {
     document.getElementById("sidebar").classList.toggle("collapsed");
 }
@@ -748,15 +917,8 @@ function toggleSidebar() {
 const chatSection = document.getElementById("chatSection");
 const dashboardSection = document.getElementById("dashboardSection");
 
-function showDashboard() {
-    chatSection.classList.remove("active");
-    dashboardSection.classList.add("active");
-}
-
-function showChat() {
-    dashboardSection.classList.remove("active");
-    chatSection.classList.add("active");
-}
+function showDashboard() { chatSection.classList.remove("active"); dashboardSection.classList.add("active"); }
+function showChat() { dashboardSection.classList.remove("active"); chatSection.classList.add("active"); }
 
 const modal = document.getElementById("uploadModal");
 function openUploadModal() { modal.classList.add("active"); }
@@ -778,11 +940,13 @@ function toggleTheme() {
     localStorage.setItem("pmo_theme", document.body.classList.contains("dark") ? "dark" : "light");
     const btn = document.getElementById("themeBtn");
     if (btn) btn.innerHTML = document.body.classList.contains("dark")
-        ? '<i class="fa-solid fa-sun"></i>'
-        : '<i class="fa-solid fa-moon"></i>';
+        ? '<i class="fa-solid fa-sun"></i> <span>Thème</span>'
+        : '<i class="fa-solid fa-moon"></i> <span>Thème</span>';
 }
 
-/* ================= AUTO RESIZE ================= */
+/* =====================================================================
+   AUTO RESIZE TEXTAREA
+   ===================================================================== */
 const textarea = document.getElementById("question");
 if (textarea) {
     textarea.addEventListener("input", () => {
@@ -797,19 +961,27 @@ if (textarea) {
     });
 }
 
-/* ================= INIT ================= */
+/* =====================================================================
+   INIT
+   ===================================================================== */
 window.addEventListener("load", () => {
-    // Restaurer le thème
     if (localStorage.getItem("pmo_theme") === "dark") {
         document.body.classList.add("dark");
+        const btn = document.getElementById("themeBtn");
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-sun"></i> <span>Thème</span>';
+    }
+
+    const recentsHidden = localStorage.getItem(RECENTS_HIDDEN_KEY) === "1";
+    if (recentsHidden) {
+        const section = document.getElementById("recentsSection");
+        if (section) section.classList.add("collapsed-recents");
     }
 
     loadProjects();
     renderChips();
-    renderHistoryPanel();
+    renderRecentsList();
     showChips();
 
-    // Polling toutes les 60s pour détecter les dégradations en temps réel
     setInterval(async () => {
         try {
             const res = await fetch("/project_status");
@@ -817,9 +989,4 @@ window.addEventListener("load", () => {
             updateSidebarAlertBadge(statusData);
         } catch (e) { /* silencieux */ }
     }, 60000);
-
-    setTimeout(() => {
-        addSystemMessage("Bienvenue sur PMO AI Copilot");
-        setTimeout(() => addSystemMessage("Sélectionnez un projet dans la sidebar ou posez une question globale"), 800);
-    }, 400);
 });
